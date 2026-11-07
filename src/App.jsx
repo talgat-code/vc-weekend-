@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Building2,
   BadgeCheck,
@@ -345,9 +345,10 @@ function ApplicationStep({ application, setApplication }) {
   );
 }
 
-function PaymentStep({ payment, setPayment, signers, setSigners, consent, setConsent, onSubmit }) {
+function PaymentStep({ payment, setPayment, signers, setSigners, consent, setConsent, onSubmit, analysis }) {
   const purposeAmount = extractPurposeAmount(payment.purpose);
   const mismatch = purposeAmount !== invoiceAmount;
+  const amountDiffers = Number(payment.amount) !== invoiceAmount;
   const update = (key, value) => setPayment((current) => ({ ...current, [key]: value }));
 
   function correctPurpose() {
@@ -365,6 +366,16 @@ function PaymentStep({ payment, setPayment, signers, setSigners, consent, setCon
         title="Проверьте платёж"
         description="Реквизиты заполнены из договора. Сверьте их с инвойсом и правилами вашей компании."
       />
+
+      {analysis && <div className="missing-notice" role="status">
+        <span className="missing-notice-icon"><Sparkles size={17} /></span>
+        <div>
+          <strong>Проверка документов: {analysis.metrics.autoFilledCount} полей предложено, {analysis.metrics.blockingCount} критичных расхождений</strong>
+          {analysis.issues.map((item) => <p key={item.code}>{item.message} {item.nextStep}</p>)}
+          <p>Это подсказки для черновика. Проверьте каждое значение самостоятельно.</p>
+        </div>
+      </div>}
+      {amountDiffers && <div className="ai-stop" role="alert"><strong>Сумма перевода отличается от инвойса.</strong><p>По демо-инвойсу указано {formatNumber(invoiceAmount)} USD. Проверьте введённую сумму.</p></div>}
 
       <div className="form-grid payment-grid">
         <Field id="debit-account" label="Счёт списания" required>
@@ -473,7 +484,7 @@ function PaymentStep({ payment, setPayment, signers, setSigners, consent, setCon
       <div className="demo-disclosure"><ShieldCheck size={16} /><span>Это прототип: нажатие «Отправить на проверку» покажет демо-статус. Данные не передаются в банк.</span></div>
       <div className="payment-submit-row">
         {mismatch ? <span className="submit-hint">Сначала подтвердите правильную сумму в назначении.</span> : !consent ? <span className="submit-hint">Для продолжения подтвердите условия перевода.</span> : <span className="submit-hint">Финальное решение и подпись остаются за вами.</span>}
-        <Button onClick={onSubmit} disabled={mismatch || !consent || !signers.director || !signers.accountant}>Отправить на проверку</Button>
+        <Button onClick={onSubmit} disabled={mismatch || amountDiffers || Boolean(analysis?.metrics.blockingCount) || !consent || !signers.director || !signers.accountant}>Отправить на проверку</Button>
       </div>
     </div>
   );
@@ -608,9 +619,29 @@ function App() {
   const [payment, setPayment] = useState({ ...initialPayment });
   const [signers, setSigners] = useState({ director: true, accountant: true });
   const [consent, setConsent] = useState(false);
+  const [analysis, setAnalysis] = useState(null);
   const amountMismatch = useMemo(() => extractPurposeAmount(payment.purpose) !== invoiceAmount, [payment.purpose]);
   const canContinueFromContract = Boolean(contractNumber.trim() && contractData.counterparty.trim() && contractData.amount.trim());
   const canContinueFromApplication = Boolean(application.number.trim() && application.date && application.fileName);
+
+  useEffect(() => {
+    if (step !== 3) return;
+    const controller = new AbortController();
+    const payload = {
+      contract: { number: contractNumber, seller: contractData.counterparty, currency: contractData.currency, total: Number(contractData.amount), unk: null },
+      invoice: { number: application.number, date: application.date, contractNumber, seller: contractData.counterparty,
+        currency: "USD", amount: invoiceAmount, beneficiaryName: payment.recipient, beneficiaryIban: payment.iban,
+        beneficiarySwift: payment.swift, beneficiaryCountry: "CN", commission: payment.feeType,
+        description: "промышленное оборудование" },
+      edits: { amount: Number(payment.amount), beneficiaryIban: payment.iban, beneficiarySwift: payment.swift }
+    };
+    fetch("http://127.0.0.1:3001/api/analyze", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload), signal: controller.signal })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Проверка недоступна")))
+      .then(setAnalysis)
+      .catch(() => { if (!controller.signal.aborted) setAnalysis(null); });
+    return () => controller.abort();
+  }, [step, contractNumber, contractData.counterparty, contractData.currency, contractData.amount, application.number, application.date,
+    payment.recipient, payment.iban, payment.swift, payment.feeType, payment.amount]);
 
   function startOver() {
     setStep(1);
@@ -681,6 +712,7 @@ function App() {
                 consent={consent}
                 setConsent={setConsent}
                 onSubmit={() => setStep(4)}
+                analysis={analysis}
               />
             )}
             {step === 4 && (

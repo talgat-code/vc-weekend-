@@ -42,7 +42,7 @@ export function analyze({contract={},invoice={},edits={}}={}) {
   if(filled(contract.seller)&&filled(invoice.seller)&&contract.seller!==invoice.seller) issues.push(issue('SELLER_MISMATCH','blocking','beneficiaryName','Продавец в договоре и инвойсе различается.','Проверьте стороны документов.'));
   if(filled(contract.currency)&&filled(invoice.currency)&&contract.currency!==invoice.currency) issues.push(issue('CURRENCY_MISMATCH','blocking','amount','Валюты договора и инвойса различаются.','Уточните условия оплаты и валюту платежа.'));
   if(Number.isFinite(contract.total)&&Number.isFinite(invoice.amount)&&invoice.amount>contract.total) issues.push(issue('AMOUNT_EXCEEDS_CONTRACT','blocking','amount',`Сумма инвойса ${invoice.amount} ${invoice.currency} превышает общую сумму договора ${contract.total} ${contract.currency}.`,'Проверьте инвойс и договор; при необходимости запросите исправление или дополнительное соглашение.'));
-  if(filled(edits.amount)&&edits.amount!==invoice.amount) issues.push(issue('EDITED_AMOUNT_DIFFERS','warning','amount','Введённая сумма отличается от инвойса.','Проверьте основание изменения суммы.'));
+  if(filled(edits.amount)&&edits.amount!==invoice.amount) issues.push(issue('EDITED_AMOUNT_DIFFERS','blocking','amount','Введённая сумма отличается от инвойса.','Проверьте основание изменения суммы.'));
   if(!filled(contract.unk)) issues.push(issue('UNK_REVIEW','review','unk','В материалах нет УНК.','Уточните у банка, требуется ли постановка договора на учёт для этого случая.'));
   const proposedCount=Object.values(suggestions).filter(filled).length;
   const blockingCount=issues.filter(x=>x.severity==='blocking').length;
