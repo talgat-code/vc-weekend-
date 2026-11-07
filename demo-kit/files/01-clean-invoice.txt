@@ -1,0 +1,17 @@
+SYNTHETIC DEMO DOCUMENT — NOT A REAL BANKING DOCUMENT
+Учебный инвойс для прототипа BCC Business.
+
+Invoice No.: DEMO-INV-001
+Invoice date: 20.10.2026
+Contract reference: DEMO-CT-001
+Supplier / Beneficiary: Northstar Demo Supplies Ltd, United Kingdom
+Buyer: ТОО «Орбита Демо», Kazakhstan
+Goods: Industrial equipment and components, batch 1
+Invoice total: 25 500 USD
+Commission type: SHA
+
+Beneficiary bank: West Demo Bank
+SWIFT/BIC: DEMOGB00
+Beneficiary account / IBAN: GB46DEMO00000000000000
+
+All names, accounts and identifiers in this document are synthetic and are for a hackathon demo only.

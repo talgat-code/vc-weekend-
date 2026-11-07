@@ -1,0 +1,17 @@
+SYNTHETIC DEMO DOCUMENT — NOT A REAL BANKING DOCUMENT
+Учебный валютный договор для прототипа BCC Business.
+
+Contract No.: DEMO-CT-002
+Date: 15.10.2026
+Buyer: ТОО «Орбита Демо», Kazakhstan
+Seller: Northstar Demo Supplies Ltd, United Kingdom
+Subject: Industrial equipment and components
+Total contract value: 51 000 USD
+Payment terms: Payment under invoice
+Contract expiry date: 31.12.2026
+
+Bank details of Seller:
+Bank: West Demo Bank
+SWIFT/BIC: DEMOGB00
+
+All names and identifiers in this document are synthetic and are for a hackathon demo only.

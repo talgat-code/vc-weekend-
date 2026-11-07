@@ -87,6 +87,9 @@ def evaluate_workflow(data: dict[str, Any]) -> tuple[list[Issue], list[str]]:
     invoice_amount_raw = underlying.get("invoice_amount") or _value(data["invoice"], "invoice_amount") or _value(data["invoice"], "amount")
     invoice_currency = underlying.get("invoice_currency") or _value(data["invoice"], "invoice_currency") or _value(data["invoice"], "currency")
     invoice_amount = decimal_value(invoice_amount_raw)
+    contract_amount_raw = _value(data["contract"], "contract_amount") or _value(data["contract"], "amount")
+    contract_currency = _value(data["contract"], "contract_currency") or _value(data["contract"], "currency")
+    contract_amount = decimal_value(contract_amount_raw)
 
     required = ["debit_account", "transfer_amount", "value_date", "beneficiary_bank_swift", "knp", "payment_purpose",
                 "supporting_document_number", "supporting_document_date", "beneficiary_name", "beneficiary_residency_country",
@@ -128,6 +131,16 @@ def evaluate_workflow(data: dict[str, Any]) -> tuple[list[Issue], list[str]]:
             "Поле суммы перевода отличается от подтверждённой суммы инвойса.", ["transfer_amount"],
             "Проверьте оба значения и вручную исправьте ошибочное.", "payment"))
 
+    if (
+        invoice_amount is not None
+        and contract_amount is not None
+        and invoice_amount > contract_amount
+        and (not invoice_currency or not contract_currency or invoice_currency == contract_currency)
+    ):
+        issues.append(_issue("INVOICE_AMOUNT_EXCEEDS_CONTRACT", "blocking", "Сумма инвойса превышает договор",
+            "Сумма инвойса больше общей суммы договора в той же валюте. Помощник не может предположить наличие допсоглашения.",
+            ["invoice_amount", "contract_amount"], "Сверьте договор, инвойс и при необходимости добавьте реквизиты допсоглашения вручную.", "payment"))
+
     swift = str(payment.get("beneficiary_bank_swift", "")).upper()
     if swift and not SWIFT_RE.fullmatch(swift):
         issues.append(_issue("INVALID_SWIFT", "blocking", "Неверный формат SWIFT", "SWIFT должен содержать 8 или 11 допустимых символов.",
@@ -143,9 +156,7 @@ def evaluate_workflow(data: dict[str, Any]) -> tuple[list[Issue], list[str]]:
             "Срочный перевод зависит от выбранного счёта. Демонстрационная комиссия составляет 5 000 KZT.",
             ["urgent_transfer", "debit_account"], "Выберите синтетический счёт и повторите проверку.", "payment"))
 
-    contract_amount_raw = _value(data["contract"], "contract_amount") or _value(data["contract"], "amount")
     registration_number = _value(data["contract"], "contract_registration_number")
-    contract_amount = decimal_value(contract_amount_raw)
     if contract_amount is None or contract_amount > Decimal("50000"):
         data["application"]["registration_review_required"] = True
         data["application"]["registration_review_reason"] = "Демонстрационное правило: импортный договор превышает 50 000 USD или не содержит суммы."

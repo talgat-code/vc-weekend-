@@ -26,12 +26,12 @@
       "amount": 25500,
       "description": "Партия промышленного оборудования",
       "beneficiaryName": "Northstar Demo Supplies Ltd",
-      "beneficiaryIban": "GB00DEMO00000000000000",
+      "beneficiaryIban": "GB46DEMO00000000000000",
       "beneficiaryBank": "West Demo Bank",
       "beneficiarySwift": "DEMOGB00",
       "beneficiaryCountry": "GB",
       "commission": "SHA",
-      "text": "Инвойс DEMO-INV-001 от 20.10.2026 к договору DEMO-CT-001. Поставщик и получатель: Northstar Demo Supplies Ltd. Покупатель: ТОО «Орбита Демо». Партия промышленного оборудования: 25 500 USD. Банк: West Demo Bank, SWIFT DEMOGB00, учебный IBAN GB00DEMO00000000000000. Комиссия SHA. Демонстрационный документ."
+      "text": "Инвойс DEMO-INV-001 от 20.10.2026 к договору DEMO-CT-001. Поставщик и получатель: Northstar Demo Supplies Ltd. Покупатель: ТОО «Орбита Демо». Партия промышленного оборудования: 25 500 USD. Банк: West Demo Bank, SWIFT DEMOGB00, учебный IBAN GB46DEMO00000000000000. Комиссия SHA. Демонстрационный документ."
     }
   },
   {
@@ -96,12 +96,12 @@
       "amount": 52000,
       "description": "Партия промышленного оборудования",
       "beneficiaryName": "Northstar Demo Supplies Ltd",
-      "beneficiaryIban": "GB00DEMO00000000000000",
+      "beneficiaryIban": "GB46DEMO00000000000000",
       "beneficiaryBank": "West Demo Bank",
       "beneficiarySwift": "DEMOGB00",
       "beneficiaryCountry": "GB",
       "commission": "SHA",
-      "text": "Инвойс DEMO-INV-003 от 20.10.2026 к договору DEMO-CT-003. Поставщик и получатель: Northstar Demo Supplies Ltd. Покупатель: ТОО «Орбита Демо». Сумма: 52 000 USD. Банк: West Demo Bank, SWIFT DEMOGB00, учебный IBAN GB00DEMO00000000000000. Демонстрационный документ."
+      "text": "Инвойс DEMO-INV-003 от 20.10.2026 к договору DEMO-CT-003. Поставщик и получатель: Northstar Demo Supplies Ltd. Покупатель: ТОО «Орбита Демо». Сумма: 52 000 USD. Банк: West Demo Bank, SWIFT DEMOGB00, учебный IBAN GB46DEMO00000000000000. Демонстрационный документ."
     }
   }
 ]

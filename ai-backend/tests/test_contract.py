@@ -7,10 +7,10 @@ CANONICAL_KEYS = {
     "issues", "missing_fields", "next_actions", "ready_for_review",
 }
 FIELD_IDS = [
-    "debit_account", "transfer_amount", "value_date", "urgent_transfer", "beneficiary_bank_swift",
-    "intermediary_bank", "knp", "payment_purpose", "supporting_document_number", "supporting_document_date",
+    "application_number", "debit_account", "transfer_amount", "value_date", "urgent_transfer", "beneficiary_bank_swift",
+    "intermediary_bank", "knp", "payment_purpose", "linked_to_contract", "supporting_document_number", "supporting_document_date", "supporting_documents",
     "beneficiary_name", "beneficiary_residency_country", "beneficiary_account", "kbe", "beneficiary_address_country",
-    "beneficiary_address_type", "commission_type", "commission_debit_account", "director_signatory", "chief_accountant_signatory", "agreement_accepted",
+    "beneficiary_address_type", "commission_type", "commission_debit_account", "director_signatory", "chief_accountant_signatory", "use_bonuses", "agreement_accepted",
 ]
 
 
@@ -30,9 +30,9 @@ def test_session_token_required(client: TestClient):
     assert response.json()["errors"][0]["code"] == "SESSION_REQUIRED"
 
 
-def test_exact_21_field_ids_and_order(client: TestClient, auth):
+def test_exact_25_field_ids_and_order(client: TestClient, auth):
     fields = client.get("/api/v1/fields", headers=auth).json()
-    assert len(fields) == 21
+    assert len(fields) == 25
     assert [field["id"] for field in fields] == FIELD_IDS
     assert "currency" not in FIELD_IDS
 

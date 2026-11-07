@@ -68,6 +68,7 @@ const initialPayment = {
   addressType: "Юридический адрес",
   feeType: "SHA",
   feeAccount: "KZ14998CTB0000012847 — USD",
+  useBonuses: false,
 };
 
 function formatNumber(value) {
@@ -137,8 +138,10 @@ function buildWorkflowPayload({ activeCase, invoiceData, contractData, contractN
       intermediary_bank: payment.intermediary,
       knp: payment.knp,
       payment_purpose: payment.purpose,
+      linked_to_contract: application.linked,
       supporting_document_number: reference.number,
       supporting_document_date: reference.date,
+      supporting_documents: supportingDocuments,
       beneficiary_name: payment.recipient,
       beneficiary_residency_country: payment.residence,
       beneficiary_account: payment.iban,
@@ -149,6 +152,7 @@ function buildWorkflowPayload({ activeCase, invoiceData, contractData, contractN
       commission_debit_account: payment.feeAccount,
       director_signatory: signers.director ? "Руководитель" : "",
       chief_accountant_signatory: signers.accountant ? "Главный бухгалтер" : "",
+      use_bonuses: payment.useBonuses,
       agreement_accepted: consent,
     },
   };
@@ -201,6 +205,22 @@ function DemoCasePicker({ activeCaseId, onSelect }) {
   );
 }
 
+function AIAssistantPanel({ apiState }) {
+  const ready = apiState.connected;
+  return (
+    <section className={`ai-assistant-panel ${ready ? "ai-assistant-panel-ready" : ""}`} aria-live="polite">
+      <span className="ai-assistant-icon"><Sparkles size={17} /></span>
+      <div>
+        <strong>{ready ? "AI-помощник подключён" : "AI-помощник запускается"}</strong>
+        <p>{ready
+          ? "Извлекает только явно указанные данные из синтетического файла, отмечает неопределённость и не отправляет платёж. Все значения подтверждает пользователь."
+          : "Проверьте, что локальный API запущен на порту 8000. Ручной сценарий интерфейса остаётся доступным."}</p>
+        {apiState.error && <span className="ai-assistant-note">{apiState.error}</span>}
+      </div>
+    </section>
+  );
+}
+
 function ContractStep({
   contractSource,
   setContractSource,
@@ -215,6 +235,7 @@ function ContractStep({
   activeCaseId,
   onSelectDemoCase,
   onAnalyzeFile,
+  apiState,
 }) {
   const fileInput = useRef(null);
   const fromAI = contractSource === "ai";
@@ -240,6 +261,7 @@ function ContractStep({
       />
 
       <DemoCasePicker activeCaseId={activeCaseId} onSelect={onSelectDemoCase} />
+      <AIAssistantPanel apiState={apiState} />
 
       <div className="mode-switch" role="tablist" aria-label="Источник договора">
         <button
@@ -264,7 +286,7 @@ function ContractStep({
           ref={fileInput}
           className="visually-hidden"
           type="file"
-          accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+          accept=".pdf,.docx,.txt"
           onChange={handleFile}
           aria-label="Выберите файл валютного договора"
         />
@@ -406,7 +428,7 @@ function ApplicationStep({ application, setApplication, onAnalyzeFile }) {
 
       <div className="form-section-heading">
         <div className="heading-with-help"><h3>Подтверждающие документы</h3><HelpTooltip text="Приложите инвойс или другой документ, который подтверждает сумму, получателя и назначение платежа." label="Пояснение: подтверждающие документы" /></div>
-        <span>PDF, JPG или PNG</span>
+        <span>PDF, DOCX или TXT</span>
       </div>
       {missingFile ? (
         <div className="upload-area">
@@ -417,7 +439,7 @@ function ApplicationStep({ application, setApplication, onAnalyzeFile }) {
           </div>
           <Button variant="secondary" onClick={() => fileInput.current?.click()}>Выбрать файл</Button>
           <Button variant="quiet" onClick={() => update("fileName", "INV-284-demo.pdf")}>Добавить демо-инвойс</Button>
-          <input ref={fileInput} className="visually-hidden" type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={handleFile} aria-label="Загрузить подтверждающий документ" />
+          <input ref={fileInput} className="visually-hidden" type="file" accept=".pdf,.docx,.txt" onChange={handleFile} aria-label="Загрузить подтверждающий документ" />
         </div>
       ) : (
         <div className="attached-file">
@@ -563,6 +585,14 @@ function PaymentStep({ payment, setPayment, signers, setSigners, consent, setCon
             <option>KZ62998CTB0000016510 — EUR</option>
           </Select>
         </Field>
+        <div className="field field-span-2 urgency-control">
+          <Toggle
+            checked={payment.useBonuses}
+            onChange={(value) => update("useBonuses", value)}
+            label="Потратить бонусы"
+            description="Демо-параметр: правила и размер покрытия комиссии в реальном продукте определяет банк."
+          />
+        </div>
         <div className="field field-span-2">
           <div className="heading-with-help"><span className="field-label">Подписанты</span><HelpTooltip text="Выберите сотрудников, которые будут подтверждать платёж электронной подписью в BCC Business." label="Пояснение: подписанты" /></div>
           <div className="signer-options">
@@ -627,7 +657,7 @@ function StatusStep({ application, payment, contractData, contractNumber, onBack
       <section className="ai-decisions">
         <h3>Что предложил AI и что подтвердили вы</h3>
         <div className="decision-row"><span className="decision-label">AI предложил</span><span>Реквизиты контрагента из договора и КНП из назначения платежа.</span></div>
-        <div className="decision-row"><span className="decision-label">Вы проверили</span><span>Исправили сумму в назначении на 48 500 USD, сверили её с инвойсом и подтвердили условия.</span></div>
+        <div className="decision-row"><span className="decision-label">Вы проверили</span><span>Сверили сумму и реквизиты с инвойсом и подтвердили условия вручную.</span></div>
       </section>
 
       <div className="next-step">
@@ -821,7 +851,7 @@ function App() {
     contractData.endDate, contractData.bank, contractData.swift, contractData.account, application.number, application.date, application.linked,
     application.fileName, payment.recipient, payment.iban, payment.swift, payment.feeType, payment.amount, payment.purpose, payment.debitAccount,
     payment.valueDate, payment.urgent, payment.intermediary, payment.knp, payment.document, payment.residence, payment.kbe, payment.country,
-    payment.addressType, payment.feeAccount, signers.director, signers.accountant, consent]);
+    payment.addressType, payment.feeAccount, payment.useBonuses, signers.director, signers.accountant, consent]);
 
   async function handleAnalyzeFile(file, documentType) {
     try {
@@ -946,6 +976,7 @@ function App() {
                 activeCaseId={activeCaseId}
                 onSelectDemoCase={selectDemoCase}
                 onAnalyzeFile={handleAnalyzeFile}
+                apiState={apiState}
               />
             )}
             {step === 2 && <ApplicationStep application={application} setApplication={setApplication} onAnalyzeFile={handleAnalyzeFile} />}

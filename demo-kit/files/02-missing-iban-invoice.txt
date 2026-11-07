@@ -1,0 +1,17 @@
+SYNTHETIC DEMO DOCUMENT — NOT A REAL BANKING DOCUMENT
+Учебный инвойс с намеренно отсутствующим реквизитом.
+
+Invoice No.: DEMO-INV-002
+Invoice date: 20.10.2026
+Contract reference: DEMO-CT-002
+Supplier / Beneficiary: Northstar Demo Supplies Ltd, United Kingdom
+Buyer: ТОО «Орбита Демо», Kazakhstan
+Goods: Industrial equipment and components, batch 1
+Invoice total: 25 500 USD
+Commission type: SHA
+
+Beneficiary bank: West Demo Bank
+SWIFT/BIC: DEMOGB00
+Beneficiary account / IBAN: NOT PROVIDED IN SOURCE DOCUMENT
+
+Expected assistant behaviour: leave the beneficiary account blank, flag the missing required field, and ask the user to obtain the original bank details. Never invent an account number.

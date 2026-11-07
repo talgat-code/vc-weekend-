@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import create_app
-from app.rules.payment import extract_money, iban_valid, parse_money
+from app.rules.payment import evaluate_workflow, extract_money, iban_valid, parse_money
 
 
 def test_deterministic_money_parser():
@@ -31,6 +31,19 @@ def test_iban_validation():
     assert iban_valid("GB82 WEST 1234 5698 7654 32") is True
     assert iban_valid("GB00 WEST 1234 5698 7654 32") is False
     assert iban_valid("622208881100483905") is None
+
+
+def test_invoice_larger_than_contract_is_a_blocking_issue(complete_payload):
+    complete_payload["invoice"]["invoice_amount"] = "52000"
+    complete_payload["payment"]["transfer_amount"] = "52000"
+    complete_payload["payment"]["payment_purpose"] = "Invoice INV-1, 52 000 USD"
+    issues, _ = evaluate_workflow({
+        "contract": {"fields": {key: {"value": value} for key, value in complete_payload["contract"].items()}},
+        "application": {"fields": {key: {"value": value} for key, value in complete_payload["application"].items()}},
+        "invoice": {"fields": {key: {"value": value} for key, value in complete_payload["invoice"].items()}},
+        "payment": {"fields": complete_payload["payment"], "underlying": {}},
+    })
+    assert "INVOICE_AMOUNT_EXCEEDS_CONTRACT" in {issue.code for issue in issues}
 
 
 def test_rate_limit_response(tmp_path: Path):

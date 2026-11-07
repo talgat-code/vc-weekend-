@@ -1,0 +1,17 @@
+SYNTHETIC DEMO DOCUMENT — NOT A REAL BANKING DOCUMENT
+Учебный инвойс с намеренным расхождением суммы.
+
+Invoice No.: DEMO-INV-003
+Invoice date: 20.10.2026
+Contract reference: DEMO-CT-003
+Supplier / Beneficiary: Northstar Demo Supplies Ltd, United Kingdom
+Buyer: ТОО «Орбита Демо», Kazakhstan
+Goods: Industrial equipment and components, batch 1
+Invoice total: 52 000 USD
+Commission type: SHA
+
+Beneficiary bank: West Demo Bank
+SWIFT/BIC: DEMOGB00
+Beneficiary account / IBAN: GB46DEMO00000000000000
+
+Expected assistant behaviour: show a blocking discrepancy because the invoice total is higher than the contract total of 51 000 USD. Do not correct values automatically.
