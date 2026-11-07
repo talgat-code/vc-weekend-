@@ -10,15 +10,14 @@ import {
   FileText,
   LockKeyhole,
   ShieldCheck,
-  Sparkles,
   Upload,
 } from "lucide-react";
 import { Button, Checkbox, Field, HelpTooltip, Input, SectionTitle, Select, Textarea, Toggle } from "./components/ui.jsx";
 import { analyzeDocument, createWorkflow, getSessionToken, normalizeWorkflow, updateWorkflow, validateWorkflow } from "./api/client.js";
-import demoCases from "../data/cases.json";
+import caseFixtures from "../data/cases.json";
 
 const steps = ["Валютный договор", "Заявление", "Платёж", "Статус"];
-const defaultDemoCase = demoCases[0];
+const defaultCase = caseFixtures[0];
 
 const contracts = [
   {
@@ -40,29 +39,29 @@ const contracts = [
 ];
 
 const initialContract = {
-  company: "ТОО «Орбита Демо»",
-  counterparty: defaultDemoCase.contract.seller,
-  amount: String(defaultDemoCase.contract.total),
+  company: "ТОО «Orda Export»",
+  counterparty: defaultCase.contract.seller,
+  amount: String(defaultCase.contract.total),
   currency: "USD",
   endDate: "31.12.2026",
-  bank: defaultDemoCase.invoice.beneficiaryBank,
-  swift: defaultDemoCase.invoice.beneficiarySwift,
-  account: defaultDemoCase.invoice.beneficiaryIban,
+  bank: defaultCase.invoice.beneficiaryBank,
+  swift: defaultCase.invoice.beneficiarySwift,
+  account: defaultCase.invoice.beneficiaryIban,
 };
 
 const initialPayment = {
   debitAccount: "KZ14998CTB0000012847 — USD",
-  amount: String(defaultDemoCase.invoice.amount),
+  amount: String(defaultCase.invoice.amount),
   valueDate: "2026-11-10",
   urgent: false,
-  swift: defaultDemoCase.invoice.beneficiarySwift,
+  swift: defaultCase.invoice.beneficiarySwift,
   intermediary: "",
   knp: "710",
-  purpose: `Оплата по инвойсу ${defaultDemoCase.invoice.number}, ${formatNumber(defaultDemoCase.invoice.amount)} USD`,
-  document: `${defaultDemoCase.invoice.number} от ${defaultDemoCase.invoice.date}`,
-  recipient: defaultDemoCase.invoice.beneficiaryName,
+  purpose: `Оплата по инвойсу ${defaultCase.invoice.number}, ${formatNumber(defaultCase.invoice.amount)} USD`,
+  document: `${defaultCase.invoice.number} от ${defaultCase.invoice.date}`,
+  recipient: defaultCase.invoice.beneficiaryName,
   residence: "Великобритания",
-  iban: defaultDemoCase.invoice.beneficiaryIban,
+  iban: defaultCase.invoice.beneficiaryIban,
   kbe: "17",
   country: "Великобритания",
   addressType: "Юридический адрес",
@@ -187,38 +186,8 @@ function ProgressStepper({ current, onGoTo }) {
   );
 }
 
-function AIHint({ children = "Предложено AI, проверьте" }) {
-  return <span className="ai-hint"><Sparkles size={12} />{children}</span>;
-}
-
-function DemoCasePicker({ activeCaseId, onSelect }) {
-  return (
-    <section className="demo-case-picker" aria-label="Синтетические сценарии">
-      <div>
-        <div className="block-title-row"><strong>Сценарий для демо</strong><HelpTooltip text="Выберите готовый синтетический сценарий, чтобы быстро увидеть разные варианты проверки документов. Эти данные учебные и не отправляются в банк." label="Пояснение: сценарий для демо" /></div>
-        <p>Все документы и реквизиты в нём синтетические.</p>
-      </div>
-      <Select aria-label="Выберите сценарий" value={activeCaseId} onChange={(event) => onSelect(event.target.value)}>
-        {demoCases.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
-      </Select>
-    </section>
-  );
-}
-
-function AIAssistantPanel({ apiState }) {
-  const ready = apiState.connected;
-  return (
-    <section className={`ai-assistant-panel ${ready ? "ai-assistant-panel-ready" : ""}`} aria-live="polite">
-      <span className="ai-assistant-icon"><Sparkles size={17} /></span>
-      <div>
-        <strong>{ready ? "AI-помощник подключён" : "AI-помощник запускается"}</strong>
-        <p>{ready
-          ? "Извлекает только явно указанные данные из синтетического файла, отмечает неопределённость и не отправляет платёж. Все значения подтверждает пользователь."
-          : "Проверьте, что локальный API запущен на порту 8000. Ручной сценарий интерфейса остаётся доступным."}</p>
-        {apiState.error && <span className="ai-assistant-note">{apiState.error}</span>}
-      </div>
-    </section>
-  );
+function SourceHint({ children = "Из документа, проверьте" }) {
+  return <span className="source-hint">{children}</span>;
 }
 
 function ContractStep({
@@ -232,8 +201,6 @@ function ContractStep({
   setSelectedContract,
   contractFile,
   setContractFile,
-  activeCaseId,
-  onSelectDemoCase,
   onAnalyzeFile,
   apiState,
 }) {
@@ -260,8 +227,6 @@ function ContractStep({
         description="Можно взять договор из списка или загрузить файл, чтобы помощник предложил данные для проверки."
       />
 
-      <DemoCasePicker activeCaseId={activeCaseId} onSelect={onSelectDemoCase} />
-      <AIAssistantPanel apiState={apiState} />
 
       <div className="mode-switch" role="tablist" aria-label="Источник договора">
         <button
@@ -339,16 +304,16 @@ function ContractStep({
         <Field id="contract-number" label="Номер валютного договора" required marker={fromAI ? "Введите вручную" : undefined}>
           <Input id="contract-number" value={contractNumber} onChange={(event) => setContractNumber(event.target.value)} placeholder="Например, ВЭД-2026-041" />
         </Field>
-        <Field id="contract-company" label="Сторона в Казахстане" marker={fromAI && <AIHint />}>
+        <Field id="contract-company" label="Сторона в Казахстане" marker={fromAI && <SourceHint />}>
           <Input id="contract-company" value={contractData.company} onChange={(event) => update("company", event.target.value)} />
         </Field>
-        <Field id="contract-counterparty" label="Иностранный контрагент" marker={fromAI && <AIHint />}>
+        <Field id="contract-counterparty" label="Иностранный контрагент" marker={fromAI && <SourceHint />}>
           <Input id="contract-counterparty" value={contractData.counterparty} onChange={(event) => update("counterparty", event.target.value)} />
         </Field>
         <div className="field">
           <div className="field-heading">
             <span className="field-label-wrap"><label className="field-label" htmlFor="contract-amount">Сумма и валюта</label><HelpTooltip text="Общая сумма договора и валюта расчёта. По ним банк сверит будущий платёж." label="Пояснение: сумма и валюта" /></span>
-            {fromAI && <AIHint />}
+            {fromAI && <SourceHint />}
           </div>
           <div className="input-combo">
             <Input id="contract-amount" value={contractData.amount} onChange={(event) => update("amount", event.target.value)} inputMode="decimal" />
@@ -357,13 +322,13 @@ function ContractStep({
             </Select>
           </div>
         </div>
-        <Field id="contract-expiry" label="Срок действия договора" marker={fromAI && <AIHint />}>
+        <Field id="contract-expiry" label="Срок действия договора" marker={fromAI && <SourceHint />}>
           <Input id="contract-expiry" value={contractData.endDate} onChange={(event) => update("endDate", event.target.value)} placeholder="ДД.ММ.ГГГГ" />
         </Field>
-        <Field id="contract-bank" label="Банк получателя" marker={fromAI && <AIHint />}>
+        <Field id="contract-bank" label="Банк получателя" marker={fromAI && <SourceHint />}>
           <Input id="contract-bank" value={contractData.bank} onChange={(event) => update("bank", event.target.value)} />
         </Field>
-        <Field id="contract-swift" label="SWIFT и счёт контрагента" className="field-span-2" marker={fromAI && <AIHint />}>
+        <Field id="contract-swift" label="SWIFT и счёт контрагента" className="field-span-2" marker={fromAI && <SourceHint />}>
           <Input id="contract-swift" value={`${contractData.swift} — ${contractData.account}`} onChange={(event) => {
             const [swift = "", ...account] = event.target.value.split("—");
             update("swift", swift.trim());
@@ -435,10 +400,9 @@ function ApplicationStep({ application, setApplication, onAnalyzeFile }) {
           <span className="upload-area-icon"><Upload size={19} /></span>
           <div className="upload-area-copy">
             <div className="block-title-row"><strong>Добавьте инвойс или подтверждающий документ</strong><HelpTooltip text="Документ нужен, чтобы банк мог сверить платёж с реальной поставкой или услугой." label="Пояснение: загрузка документа" /></div>
-            <span>Можно выбрать файл на устройстве или добавить пример для демо.</span>
+            <span>Выберите файл PDF, JPG или PNG с реквизитами поставки.</span>
           </div>
           <Button variant="secondary" onClick={() => fileInput.current?.click()}>Выбрать файл</Button>
-          <Button variant="quiet" onClick={() => update("fileName", "INV-284-demo.pdf")}>Добавить демо-инвойс</Button>
           <input ref={fileInput} className="visually-hidden" type="file" accept=".pdf,.docx,.txt" onChange={handleFile} aria-label="Загрузить подтверждающий документ" />
         </div>
       ) : (
@@ -488,14 +452,14 @@ function PaymentStep({ payment, setPayment, signers, setSigners, consent, setCon
       />
 
       {analysis && <div className="missing-notice" role="status">
-        <span className="missing-notice-icon"><Sparkles size={17} /></span>
+        <span className="missing-notice-icon"><ShieldCheck size={17} /></span>
         <div>
           <strong>Проверка документов: {analysis.metrics.autoFilledCount} полей предложено, {analysis.metrics.blockingCount} критичных расхождений</strong>
           {analysis.issues.map((item) => <p key={item.code}>{item.message} {item.nextStep}</p>)}
           <p>Это подсказки для черновика. Проверьте каждое значение самостоятельно.</p>
         </div>
       </div>}
-      {amountDiffers && <div className="ai-stop" role="alert"><strong>Сумма перевода отличается от инвойса.</strong><p>По демо-инвойсу указано {formatNumber(invoiceAmount)} USD. Проверьте введённую сумму.</p></div>}
+      {amountDiffers && <div className="ai-stop" role="alert"><strong>Сумма перевода отличается от инвойса.</strong><p>В инвойсе указано {formatNumber(invoiceAmount)} {invoice.currency}. Проверьте введённую сумму.</p></div>}
 
       <div className="form-grid payment-grid grid grid-cols-1 sm:grid-cols-2">
         <Field id="debit-account" label="Счёт списания" required>
@@ -610,7 +574,7 @@ function PaymentStep({ payment, setPayment, signers, setSigners, consent, setCon
         </div>
       </div>
 
-      <div className="demo-disclosure"><ShieldCheck size={16} /><span>Это прототип: нажатие «Отправить на проверку» покажет демо-статус. Данные не передаются в банк.</span><HelpTooltip text="В демо-сценарии нет подключения к банковской системе: кнопка только показывает следующий экран прототипа." label="Пояснение: демо-сценарий" /></div>
+      <div className="draft-disclosure"><ShieldCheck size={16} /><span>Платёж сохранится как черновик. Перед отправкой банк потребует подписи уполномоченных сотрудников.</span><HelpTooltip text="Помощник проверяет документы и готовит черновик, но не подписывает и не отправляет платёж вместо вас." label="Пояснение: контроль пользователя" /></div>
       <div className="payment-submit-row">
         {mismatch ? <span className="submit-hint">Сначала подтвердите правильную сумму в назначении.</span> : !consent ? <span className="submit-hint">Для продолжения подтвердите условия перевода.</span> : <span className="submit-hint">Финальное решение и подпись остаются за вами.</span>}
         <Button onClick={onSubmit} disabled={mismatch || amountDiffers || Boolean(analysis?.metrics.blockingCount) || !consent || !signers.director || !signers.accountant}>Отправить на проверку</Button>
@@ -626,13 +590,13 @@ function StatusStep({ application, payment, contractData, contractNumber, onBack
         <span className="status-check"><Check size={23} /></span>
         <div>
           <h2>Пакет подготовлен к проверке</h2>
-          <p>В демо-сценарии все данные собраны и переданы на внутреннюю проверку.</p>
+          <p>Документы собраны в один пакет и готовы к проверке в BCC Business.</p>
         </div>
       </div>
 
       <div className="status-disclosure" role="note">
         <ShieldCheck size={19} />
-        <p><strong>AI ничего не подписывает и не отправляет сам.</strong> Здесь показан пример статуса: в прототипе нет подключения к банку. В BCC Business финальное решение и подписание остаются за вами и вашими подписантами.</p>
+        <p><strong>Помощник ничего не подписывает и не отправляет сам.</strong> Пакет подготовлен как черновик: финальное решение и подписание остаются за вами и вашими подписантами.</p>
       </div>
 
       <div className="status-columns">
@@ -657,7 +621,7 @@ function StatusStep({ application, payment, contractData, contractNumber, onBack
       <section className="ai-decisions">
         <h3>Что предложил AI и что подтвердили вы</h3>
         <div className="decision-row"><span className="decision-label">AI предложил</span><span>Реквизиты контрагента из договора и КНП из назначения платежа.</span></div>
-        <div className="decision-row"><span className="decision-label">Вы проверили</span><span>Сверили сумму и реквизиты с инвойсом и подтвердили условия вручную.</span></div>
+        <div className="decision-row"><span className="decision-label">Вы проверили</span><span>Сверили назначение и сумму с инвойсом, затем подтвердили условия перевода.</span></div>
       </section>
 
       <div className="next-step">
@@ -674,12 +638,47 @@ function StatusStep({ application, payment, contractData, contractNumber, onBack
   );
 }
 
-function Aside({ step, contractNumber, payment, application }) {
+function ReadinessPanel({ contractNumber, contractData, payment, application, consent, analysis }) {
+  const checks = [
+    { label: "Договор", done: Boolean(contractNumber && contractData.counterparty && contractData.amount) },
+    { label: "Документ-основание", done: Boolean(application.number && application.date && application.fileName) },
+    { label: "Реквизиты платежа", done: Boolean(payment.amount && payment.swift && payment.iban && payment.purpose) },
+    { label: "Проверка и согласие", done: Boolean(analysis && !analysis.metrics.blockingCount && consent) },
+  ];
+  const completed = checks.filter((item) => item.done).length;
+  const score = Math.round((completed / checks.length) * 100);
+  const next = checks.find((item) => !item.done)?.label || "Можно отправлять на проверку";
+
+  return (
+    <section className="readiness-panel" aria-label="Готовность платежа">
+      <div className="readiness-heading">
+        <div>
+          <h2>Готовность платежа</h2>
+          <p>Контрольная карта перед подписью</p>
+        </div>
+        <strong>{score}%</strong>
+      </div>
+      <div className="readiness-track" aria-hidden="true"><span style={{ width: `${score}%` }} /></div>
+      <ol className="readiness-list">
+        {checks.map((item, index) => (
+          <li key={item.label} className={item.done ? "is-done" : ""}>
+            <span className="readiness-marker">{item.done ? <Check size={12} /> : index + 1}</span>
+            <span>{item.label}</span>
+          </li>
+        ))}
+      </ol>
+      <p className="readiness-next"><span>Следующее действие</span><strong>{next}</strong></p>
+    </section>
+  );
+}
+
+function Aside({ step, contractNumber, contractData, payment, application, consent, analysis }) {
   const isStatus = step === 4;
   return (
     <aside className="side-column grid grid-cols-1">
       {!isStatus ? (
         <>
+          <ReadinessPanel contractNumber={contractNumber} contractData={contractData} payment={payment} application={application} consent={consent} analysis={analysis} />
           <section className="summary-panel">
             <div className="aside-heading">
               <div className="heading-with-help"><h2>Сводка перевода</h2><HelpTooltip text="Здесь собраны ключевые реквизиты текущего перевода. Сводка обновляется, пока вы заполняете форму." label="Пояснение: сводка перевода" /></div>
@@ -701,7 +700,7 @@ function Aside({ step, contractNumber, payment, application }) {
           </section>
 
           <section className="help-panel">
-            <div className="help-title"><ShieldCheck size={18} /><h2>{step === 3 ? "Ваш контроль" : "Как помогает AI"}</h2><HelpTooltip text={step === 3 ? "AI подсвечивает несоответствия, но не принимает решение и не подписывает платёж." : "AI переносит данные и объясняет следующие шаги, а вы проверяете каждое значение."} label="Пояснение: помощь AI" /></div>
+            <div className="help-title"><ShieldCheck size={18} /><h2>{step === 3 ? "Ваш контроль" : "Проверка данных"}</h2><HelpTooltip text={step === 3 ? "Помощник подсвечивает несоответствия, но не принимает решение и не подписывает платёж." : "Поля переносятся из документов, а вы проверяете каждое значение перед продолжением."} label="Пояснение: проверка данных" /></div>
             {step === 1 ? (
               <p>Помощник переносит условия договора в форму. Сверьте каждое отмеченное значение с оригиналом.</p>
             ) : step === 2 ? (
@@ -733,19 +732,18 @@ function Aside({ step, contractNumber, payment, application }) {
 }
 
 function App() {
-  const [activeCaseId, setActiveCaseId] = useState("clean");
   const [step, setStep] = useState(1);
   const [contractSource, setContractSource] = useState("ai");
   const [selectedContract, setSelectedContract] = useState(contracts[0]);
   const [contractData, setContractData] = useState({ ...initialContract });
-  const [contractNumber, setContractNumber] = useState(defaultDemoCase.contract.number);
-  const [invoiceData, setInvoiceData] = useState({ ...defaultDemoCase.invoice });
-  const [contractFile, setContractFile] = useState(`${defaultDemoCase.contract.number}-demo.docx`);
+  const [contractNumber, setContractNumber] = useState(defaultCase.contract.number);
+  const [invoiceData, setInvoiceData] = useState({ ...defaultCase.invoice });
+  const [contractFile, setContractFile] = useState("Контракт ВЭД-2026-041.docx");
   const [application, setApplication] = useState({
-    number: defaultDemoCase.invoice.number,
-    date: defaultDemoCase.invoice.date,
+    number: defaultCase.invoice.number,
+    date: defaultCase.invoice.date,
     linked: true,
-    fileName: "",
+    fileName: "Инвойс INV-2026-041.pdf",
   });
   const [payment, setPayment] = useState({ ...initialPayment });
   const [signers, setSigners] = useState({ director: true, accountant: true });
@@ -754,33 +752,9 @@ function App() {
   const [workflowId, setWorkflowId] = useState(null);
   const workflowNeedsReconcile = useRef(true);
   const [apiState, setApiState] = useState({ connected: false, error: null });
-  const activeCase = demoCases.find((item) => item.id === activeCaseId) ?? demoCases[0];
+  const activeCase = defaultCase;
   const canContinueFromContract = Boolean(contractNumber.trim() && contractData.counterparty.trim() && contractData.amount.trim());
   const canContinueFromApplication = Boolean(application.number.trim() && application.date && application.fileName);
-
-  function selectDemoCase(caseId) {
-    const selected = demoCases.find((item) => item.id === caseId);
-    if (!selected) return;
-    const { contract, invoice } = selected;
-    setActiveCaseId(caseId);
-    setContractSource("ai");
-    setContractNumber(contract.number);
-    setContractData({
-      company: "ТОО «Орбита Демо»", counterparty: contract.seller, amount: String(contract.total), currency: contract.currency,
-      endDate: "31.12.2026", bank: invoice.beneficiaryBank, swift: invoice.beneficiarySwift ?? "", account: invoice.beneficiaryIban ?? "",
-    });
-    setContractFile(`${contract.number}-demo.docx`);
-    setInvoiceData({ ...invoice });
-    setApplication({ number: invoice.number, date: invoice.date, linked: true, fileName: `${invoice.number}-demo.pdf` });
-    setPayment((current) => ({ ...current, amount: String(invoice.amount), swift: invoice.beneficiarySwift ?? "", purpose: `Оплата по инвойсу ${invoice.number}, ${formatNumber(invoice.amount)} ${invoice.currency}`,
-      document: `${invoice.number} от ${invoice.date}`, recipient: invoice.beneficiaryName, residence: "Великобритания", iban: invoice.beneficiaryIban ?? "",
-      country: "Великобритания", feeType: invoice.commission }));
-    setWorkflowId(null);
-    workflowNeedsReconcile.current = true;
-    setAnalysis(null);
-    setConsent(false);
-    setStep(1);
-  }
 
   useEffect(() => {
     getSessionToken()
@@ -827,7 +801,7 @@ function App() {
         setApiState({ connected: true, error: null });
       } catch (error) {
         if (controller.signal.aborted) return;
-        // Keep the existing local demo API as a fallback while the Python service is starting.
+        // Keep the existing local API as a fallback while the Python service is starting.
         const legacyPayload = {
           contract: { ...activeCase.contract, number: contractNumber, seller: contractData.counterparty, currency: contractData.currency, total: Number(contractData.amount), unk: null },
           invoice: { ...activeCase.invoice, number: application.number, date: application.date, contractNumber, seller: contractData.counterparty,
@@ -912,15 +886,14 @@ function App() {
   }
 
   function startOver() {
-    setActiveCaseId("clean");
     setStep(1);
     setContractSource("ai");
     setSelectedContract(contracts[0]);
     setContractData({ ...initialContract });
-    setContractNumber(defaultDemoCase.contract.number);
-    setInvoiceData({ ...defaultDemoCase.invoice });
-    setContractFile(`${defaultDemoCase.contract.number}-demo.docx`);
-    setApplication({ number: defaultDemoCase.invoice.number, date: defaultDemoCase.invoice.date, linked: true, fileName: "" });
+    setContractNumber(defaultCase.contract.number);
+    setInvoiceData({ ...defaultCase.invoice });
+    setContractFile("Контракт ВЭД-2026-041.docx");
+    setApplication({ number: defaultCase.invoice.number, date: defaultCase.invoice.date, linked: true, fileName: "Инвойс INV-2026-041.pdf" });
     setPayment({ ...initialPayment });
     setSigners({ director: true, accountant: true });
     setConsent(false);
@@ -951,10 +924,9 @@ function App() {
         <div className="page-heading">
           <div>
             <div className="breadcrumb">Платежи <span>/</span> Валютные переводы</div>
-            <h1>{step === 4 ? "Статус валютного перевода" : "Подготовка валютного перевода"}</h1>
-            <p>Проверьте договор, подготовьте заявление и платёж. Все решения остаются за вами.</p>
+            <h1>{step === 4 ? "Статус валютного перевода" : "Новый валютный перевод"}</h1>
+            <p>Соберите документы, проверьте реквизиты и подготовьте платёж к подписи.</p>
           </div>
-          <span className="demo-badge"><span /> Демо-сценарий</span>
         </div>
 
         <ProgressStepper current={step} onGoTo={setStep} />
@@ -973,8 +945,6 @@ function App() {
                 setSelectedContract={setSelectedContract}
                 contractFile={contractFile}
                 setContractFile={setContractFile}
-                activeCaseId={activeCaseId}
-                onSelectDemoCase={selectDemoCase}
                 onAnalyzeFile={handleAnalyzeFile}
                 apiState={apiState}
               />
@@ -1012,9 +982,9 @@ function App() {
               </div>
             )}
           </section>
-          <Aside step={step} contractNumber={contractNumber} payment={payment} application={application} />
+          <Aside step={step} contractNumber={contractNumber} contractData={contractData} payment={payment} application={application} consent={consent} analysis={analysis} />
         </div>
-        <footer className="page-footer"><span>Помощник по валютным переводам</span><span>Данные в этом прототипе не передаются в банк</span></footer>
+        <footer className="page-footer"><span>Помощник по валютным переводам</span><span>Платёж не отправляется без вашей подписи</span></footer>
       </main>
     </div>
   );
