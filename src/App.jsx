@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Building2,
   BadgeCheck,
@@ -14,9 +14,10 @@ import {
   Upload,
 } from "lucide-react";
 import { Button, Checkbox, Field, Input, SectionTitle, Select, Textarea, Toggle } from "./components/ui.jsx";
+import demoCases from "../data/cases.json";
 
 const steps = ["Валютный договор", "Заявление", "Платёж", "Статус"];
-const invoiceAmount = 48500;
+const defaultDemoCase = demoCases[0];
 
 const contracts = [
   {
@@ -38,31 +39,31 @@ const contracts = [
 ];
 
 const initialContract = {
-  company: "ТОО «Orda Export»",
-  counterparty: contracts[0].partner,
-  amount: "48500",
+  company: "ТОО «Орбита Демо»",
+  counterparty: defaultDemoCase.contract.seller,
+  amount: String(defaultDemoCase.contract.total),
   currency: "USD",
   endDate: "31.12.2026",
-  bank: "Bank of China, Shanghai Branch",
-  swift: "BKCHCNBJ92A",
-  account: "6222 0888 1100 4839 05",
+  bank: defaultDemoCase.invoice.beneficiaryBank,
+  swift: defaultDemoCase.invoice.beneficiarySwift,
+  account: defaultDemoCase.invoice.beneficiaryIban,
 };
 
 const initialPayment = {
   debitAccount: "KZ14998CTB0000012847 — USD",
-  amount: "48500",
+  amount: String(defaultDemoCase.invoice.amount),
   valueDate: "2026-11-10",
   urgent: false,
-  swift: "BKCHCNBJ92A",
+  swift: defaultDemoCase.invoice.beneficiarySwift,
   intermediary: "",
   knp: "710",
-  purpose: "Оплата по инвойсу INV-284 от 06.11.2026, 48 000 USD",
-  document: "INV-284 от 06.11.2026",
-  recipient: "Ningbo Bright Tools Co., Ltd.",
-  residence: "Китай",
-  iban: "6222 0888 1100 4839 05",
+  purpose: `Оплата по инвойсу ${defaultDemoCase.invoice.number}, ${formatNumber(defaultDemoCase.invoice.amount)} USD`,
+  document: `${defaultDemoCase.invoice.number} от ${defaultDemoCase.invoice.date}`,
+  recipient: defaultDemoCase.invoice.beneficiaryName,
+  residence: "Великобритания",
+  iban: defaultDemoCase.invoice.beneficiaryIban,
   kbe: "17",
-  country: "Китай",
+  country: "Великобритания",
   addressType: "Юридический адрес",
   feeType: "SHA",
   feeAccount: "KZ14998CTB0000012847 — USD",
@@ -113,6 +114,20 @@ function AIHint({ children = "Предложено AI, проверьте" }) {
   return <span className="ai-hint"><Sparkles size={12} />{children}</span>;
 }
 
+function DemoCasePicker({ activeCaseId, onSelect }) {
+  return (
+    <section className="demo-case-picker" aria-label="Синтетические сценарии">
+      <div>
+        <strong>Сценарий для демо</strong>
+        <p>Все документы и реквизиты в нём синтетические.</p>
+      </div>
+      <Select aria-label="Выберите сценарий" value={activeCaseId} onChange={(event) => onSelect(event.target.value)}>
+        {demoCases.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+      </Select>
+    </section>
+  );
+}
+
 function ContractStep({
   contractSource,
   setContractSource,
@@ -124,6 +139,8 @@ function ContractStep({
   setSelectedContract,
   contractFile,
   setContractFile,
+  activeCaseId,
+  onSelectDemoCase,
 }) {
   const fileInput = useRef(null);
   const fromAI = contractSource === "ai";
@@ -146,6 +163,8 @@ function ContractStep({
         title="Выберите валютный договор"
         description="Можно взять договор из списка или загрузить файл, чтобы помощник предложил данные для проверки."
       />
+
+      <DemoCasePicker activeCaseId={activeCaseId} onSelect={onSelectDemoCase} />
 
       <div className="mode-switch" role="tablist" aria-label="Источник договора">
         <button
@@ -255,7 +274,7 @@ function ContractStep({
           }} />
         </Field>
       </div>
-      {fromAI && <p className="form-note"><CircleHelp size={15} /> Номер договора не найден в выбранном фрагменте. Введите его так, как он указан в подписанном документе.</p>}
+      {fromAI && !contractNumber && <p className="form-note"><CircleHelp size={15} /> Номер договора не найден в выбранном фрагменте. Введите его так, как он указан в подписанном документе.</p>}
     </div>
   );
 }
@@ -345,14 +364,15 @@ function ApplicationStep({ application, setApplication }) {
   );
 }
 
-function PaymentStep({ payment, setPayment, signers, setSigners, consent, setConsent, onSubmit, analysis }) {
+function PaymentStep({ payment, setPayment, signers, setSigners, consent, setConsent, onSubmit, analysis, invoice }) {
   const purposeAmount = extractPurposeAmount(payment.purpose);
+  const invoiceAmount = invoice.amount;
   const mismatch = purposeAmount !== invoiceAmount;
   const amountDiffers = Number(payment.amount) !== invoiceAmount;
   const update = (key, value) => setPayment((current) => ({ ...current, [key]: value }));
 
   function correctPurpose() {
-    const amountText = `${formatNumber(invoiceAmount)} USD`;
+    const amountText = `${formatNumber(invoiceAmount)} ${invoice.currency}`;
     if (purposeAmount === null) {
       update("purpose", `${payment.purpose.trim()} ${amountText}`.trim());
       return;
@@ -385,7 +405,7 @@ function PaymentStep({ payment, setPayment, signers, setSigners, consent, setCon
             <option>KZ62998CTB0000016510 — EUR</option>
           </Select>
         </Field>
-        <Field id="payment-amount" label="Сумма перевода" required hint="По инвойсу INV-284: 48 500 USD">
+        <Field id="payment-amount" label="Сумма перевода" required hint={`По инвойсу ${invoice.number}: ${formatNumber(invoiceAmount)} ${invoice.currency}`}>
           <div className="input-combo">
             <Input id="payment-amount" value={payment.amount} onChange={(event) => update("amount", event.target.value)} inputMode="decimal" />
             <span className="currency-suffix">USD</span>
@@ -422,7 +442,7 @@ function PaymentStep({ payment, setPayment, signers, setSigners, consent, setCon
         {mismatch && (
           <div className="ai-stop field-span-2" role="alert">
             <div className="ai-stop-heading"><span className="ai-stop-icon"><CircleHelp size={17} /></span><strong>Я остановился — суммы не совпадают</strong></div>
-            <p>В назначении указано {purposeAmount === null ? "не указана сумма в USD" : `${formatNumber(purposeAmount)} USD`}, а в инвойсе INV-284 — 48 500 USD. Я не буду менять данные за вас. Сверьте инвойс и выберите, что исправить.</p>
+            <p>В назначении указано {purposeAmount === null ? "не указана сумма в USD" : `${formatNumber(purposeAmount)} USD`}, а в инвойсе {invoice.number} — {formatNumber(invoiceAmount)} {invoice.currency}. Я не буду менять данные за вас. Сверьте инвойс и выберите, что исправить.</p>
             <Button variant="secondary" className="fix-purpose-button" onClick={correctPurpose}>Исправить назначение на сумму инвойса</Button>
           </div>
         )}
@@ -434,7 +454,7 @@ function PaymentStep({ payment, setPayment, signers, setSigners, consent, setCon
         </Field>
         <Field id="residence-country" label="Страна резидентства" required>
           <Select id="residence-country" value={payment.residence} onChange={(event) => update("residence", event.target.value)}>
-            <option>Китай</option><option>Германия</option><option>Турция</option><option>ОАЭ</option>
+            <option>Великобритания</option><option>Китай</option><option>Германия</option><option>Турция</option><option>ОАЭ</option>
           </Select>
         </Field>
         <Field id="recipient-iban" label="Счёт получателя (IBAN)" required>
@@ -445,7 +465,7 @@ function PaymentStep({ payment, setPayment, signers, setSigners, consent, setCon
         </Field>
         <Field id="recipient-country" label="Страна получателя" required>
           <Select id="recipient-country" value={payment.country} onChange={(event) => update("country", event.target.value)}>
-            <option>Китай</option><option>Германия</option><option>Турция</option><option>ОАЭ</option>
+            <option>Великобритания</option><option>Китай</option><option>Германия</option><option>Турция</option><option>ОАЭ</option>
           </Select>
         </Field>
         <Field id="address-type" label="Тип адреса" required>
@@ -604,15 +624,16 @@ function Aside({ step, contractNumber, payment, application }) {
 }
 
 function App() {
+  const [activeCaseId, setActiveCaseId] = useState("clean");
   const [step, setStep] = useState(1);
-  const [contractSource, setContractSource] = useState("existing");
+  const [contractSource, setContractSource] = useState("ai");
   const [selectedContract, setSelectedContract] = useState(contracts[0]);
   const [contractData, setContractData] = useState({ ...initialContract });
-  const [contractNumber, setContractNumber] = useState(contracts[0].number);
-  const [contractFile, setContractFile] = useState("");
+  const [contractNumber, setContractNumber] = useState(defaultDemoCase.contract.number);
+  const [contractFile, setContractFile] = useState(`${defaultDemoCase.contract.number}-demo.docx`);
   const [application, setApplication] = useState({
-    number: "INV-284",
-    date: "2026-11-06",
+    number: defaultDemoCase.invoice.number,
+    date: defaultDemoCase.invoice.date,
     linked: true,
     fileName: "",
   });
@@ -620,19 +641,38 @@ function App() {
   const [signers, setSigners] = useState({ director: true, accountant: true });
   const [consent, setConsent] = useState(false);
   const [analysis, setAnalysis] = useState(null);
-  const amountMismatch = useMemo(() => extractPurposeAmount(payment.purpose) !== invoiceAmount, [payment.purpose]);
+  const activeCase = demoCases.find((item) => item.id === activeCaseId) ?? demoCases[0];
   const canContinueFromContract = Boolean(contractNumber.trim() && contractData.counterparty.trim() && contractData.amount.trim());
   const canContinueFromApplication = Boolean(application.number.trim() && application.date && application.fileName);
+
+  function selectDemoCase(caseId) {
+    const selected = demoCases.find((item) => item.id === caseId);
+    if (!selected) return;
+    const { contract, invoice } = selected;
+    setActiveCaseId(caseId);
+    setContractSource("ai");
+    setContractNumber(contract.number);
+    setContractData({
+      company: "ТОО «Орбита Демо»", counterparty: contract.seller, amount: String(contract.total), currency: contract.currency,
+      endDate: "31.12.2026", bank: invoice.beneficiaryBank, swift: invoice.beneficiarySwift ?? "", account: invoice.beneficiaryIban ?? "",
+    });
+    setContractFile(`${contract.number}-demo.docx`);
+    setApplication({ number: invoice.number, date: invoice.date, linked: true, fileName: `${invoice.number}-demo.pdf` });
+    setPayment((current) => ({ ...current, amount: String(invoice.amount), swift: invoice.beneficiarySwift ?? "", purpose: `Оплата по инвойсу ${invoice.number}, ${formatNumber(invoice.amount)} ${invoice.currency}`,
+      document: `${invoice.number} от ${invoice.date}`, recipient: invoice.beneficiaryName, residence: "Великобритания", iban: invoice.beneficiaryIban ?? "",
+      country: "Великобритания", feeType: invoice.commission }));
+    setConsent(false);
+    setStep(1);
+  }
 
   useEffect(() => {
     if (step !== 3) return;
     const controller = new AbortController();
     const payload = {
-      contract: { number: contractNumber, seller: contractData.counterparty, currency: contractData.currency, total: Number(contractData.amount), unk: null },
-      invoice: { number: application.number, date: application.date, contractNumber, seller: contractData.counterparty,
-        currency: "USD", amount: invoiceAmount, beneficiaryName: payment.recipient, beneficiaryIban: payment.iban,
-        beneficiarySwift: payment.swift, beneficiaryCountry: "CN", commission: payment.feeType,
-        description: "промышленное оборудование" },
+      contract: { ...activeCase.contract, number: contractNumber, seller: contractData.counterparty, currency: contractData.currency, total: Number(contractData.amount), unk: null },
+      invoice: { ...activeCase.invoice, number: application.number, date: application.date, contractNumber, seller: contractData.counterparty,
+        amount: activeCase.invoice.amount, beneficiaryName: payment.recipient, beneficiaryIban: payment.iban,
+        beneficiarySwift: payment.swift, commission: payment.feeType },
       edits: { amount: Number(payment.amount), beneficiaryIban: payment.iban, beneficiarySwift: payment.swift }
     };
     fetch("http://127.0.0.1:3001/api/analyze", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload), signal: controller.signal })
@@ -640,17 +680,18 @@ function App() {
       .then(setAnalysis)
       .catch(() => { if (!controller.signal.aborted) setAnalysis(null); });
     return () => controller.abort();
-  }, [step, contractNumber, contractData.counterparty, contractData.currency, contractData.amount, application.number, application.date,
+  }, [step, activeCase, contractNumber, contractData.counterparty, contractData.currency, contractData.amount, application.number, application.date,
     payment.recipient, payment.iban, payment.swift, payment.feeType, payment.amount]);
 
   function startOver() {
+    setActiveCaseId("clean");
     setStep(1);
-    setContractSource("existing");
+    setContractSource("ai");
     setSelectedContract(contracts[0]);
     setContractData({ ...initialContract });
-    setContractNumber(contracts[0].number);
-    setContractFile("");
-    setApplication({ number: "INV-284", date: "2026-11-06", linked: true, fileName: "" });
+    setContractNumber(defaultDemoCase.contract.number);
+    setContractFile(`${defaultDemoCase.contract.number}-demo.docx`);
+    setApplication({ number: defaultDemoCase.invoice.number, date: defaultDemoCase.invoice.date, linked: true, fileName: "" });
     setPayment({ ...initialPayment });
     setSigners({ director: true, accountant: true });
     setConsent(false);
@@ -700,6 +741,8 @@ function App() {
                 setSelectedContract={setSelectedContract}
                 contractFile={contractFile}
                 setContractFile={setContractFile}
+                activeCaseId={activeCaseId}
+                onSelectDemoCase={selectDemoCase}
               />
             )}
             {step === 2 && <ApplicationStep application={application} setApplication={setApplication} />}
@@ -713,6 +756,7 @@ function App() {
                 setConsent={setConsent}
                 onSubmit={() => setStep(4)}
                 analysis={analysis}
+                invoice={activeCase.invoice}
               />
             )}
             {step === 4 && (

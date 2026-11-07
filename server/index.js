@@ -2,7 +2,7 @@ import {createServer} from 'node:http';
 import {analyze,demoCases,paymentFields} from './analysis.js';
 
 const port=Number(process.env.PORT||3001);
-const send=(res,status,body)=>{res.writeHead(status,{'content-type':'application/json; charset=utf-8','access-control-allow-origin':process.env.CORS_ORIGIN||'http://localhost:5173','access-control-allow-headers':'content-type','access-control-allow-methods':'GET, POST, OPTIONS'});res.end(JSON.stringify(body));};
+const send=(res,status,body)=>{res.writeHead(status,{'content-type':'application/json; charset=utf-8','access-control-allow-origin':process.env.CORS_ORIGIN||'*','access-control-allow-headers':'content-type','access-control-allow-methods':'GET, POST, OPTIONS'});res.end(JSON.stringify(body));};
 const readJson=async req=>{let raw='';for await(const part of req){raw+=part;if(raw.length>100_000)throw Error('Слишком большой запрос');}return JSON.parse(raw||'{}');};
 const explain=async item=>{
   const analysis=analyze(item);
