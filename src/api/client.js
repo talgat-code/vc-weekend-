@@ -1,4 +1,5 @@
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api/v1").replace(/\/$/, "");
+const localApiHost = typeof window === "undefined" ? "127.0.0.1" : window.location.hostname;
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || `http://${localApiHost}:8000/api/v1`).replace(/\/$/, "");
 const SESSION_STORAGE_KEY = "bcc-ved-session-token";
 
 let sessionPromise;
