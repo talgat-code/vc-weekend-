@@ -1,0 +1,107 @@
+[
+  {
+    "id": "clean",
+    "title": "Корректный инвойс",
+    "description": "Одна партия оборудования, сведения согласованы.",
+    "contract": {
+      "number": "DEMO-CT-001",
+      "date": "2026-10-15",
+      "buyer": "ТОО «Орбита Демо»",
+      "seller": "Northstar Demo Supplies Ltd",
+      "currency": "USD",
+      "total": 51000,
+      "subject": "Промышленное оборудование и комплектующие",
+      "paymentTerms": "Оплата по условиям инвойса",
+      "sellerCountry": "GB",
+      "unk": null,
+      "text": "Договор DEMO-CT-001 от 15.10.2026. Покупатель: ТОО «Орбита Демо». Продавец: Northstar Demo Supplies Ltd, Великобритания. Предмет: промышленное оборудование и комплектующие. Общая стоимость: 51 000 USD. Оплата по условиям инвойса. УНК: сведения не представлены. Образец для демонстрации, не действующий договор."
+    },
+    "invoice": {
+      "number": "DEMO-INV-001",
+      "date": "2026-10-20",
+      "contractNumber": "DEMO-CT-001",
+      "seller": "Northstar Demo Supplies Ltd",
+      "buyer": "ТОО «Орбита Демо»",
+      "currency": "USD",
+      "amount": 25500,
+      "description": "Партия промышленного оборудования",
+      "beneficiaryName": "Northstar Demo Supplies Ltd",
+      "beneficiaryIban": "GB00DEMO00000000000000",
+      "beneficiaryBank": "West Demo Bank",
+      "beneficiarySwift": "DEMOGB00",
+      "beneficiaryCountry": "GB",
+      "commission": "SHA",
+      "text": "Инвойс DEMO-INV-001 от 20.10.2026 к договору DEMO-CT-001. Поставщик и получатель: Northstar Demo Supplies Ltd. Покупатель: ТОО «Орбита Демо». Партия промышленного оборудования: 25 500 USD. Банк: West Demo Bank, SWIFT DEMOGB00, учебный IBAN GB00DEMO00000000000000. Комиссия SHA. Демонстрационный документ."
+    }
+  },
+  {
+    "id": "missing-iban",
+    "title": "Нет счёта получателя",
+    "description": "В инвойсе отсутствует IBAN: поле нельзя заполнять догадкой.",
+    "contract": {
+      "number": "DEMO-CT-002",
+      "date": "2026-10-15",
+      "buyer": "ТОО «Орбита Демо»",
+      "seller": "Northstar Demo Supplies Ltd",
+      "currency": "USD",
+      "total": 51000,
+      "subject": "Промышленное оборудование и комплектующие",
+      "paymentTerms": "Оплата по условиям инвойса",
+      "sellerCountry": "GB",
+      "unk": null,
+      "text": "Договор DEMO-CT-002 от 15.10.2026. Покупатель: ТОО «Орбита Демо». Продавец: Northstar Demo Supplies Ltd, Великобритания. Предмет: промышленное оборудование и комплектующие. Общая стоимость: 51 000 USD. Оплата по условиям инвойса. УНК: сведения не представлены. Образец для демонстрации."
+    },
+    "invoice": {
+      "number": "DEMO-INV-002",
+      "date": "2026-10-20",
+      "contractNumber": "DEMO-CT-002",
+      "seller": "Northstar Demo Supplies Ltd",
+      "buyer": "ТОО «Орбита Демо»",
+      "currency": "USD",
+      "amount": 25500,
+      "description": "Партия промышленного оборудования",
+      "beneficiaryName": "Northstar Demo Supplies Ltd",
+      "beneficiaryIban": null,
+      "beneficiaryBank": "West Demo Bank",
+      "beneficiarySwift": "DEMOGB00",
+      "beneficiaryCountry": "GB",
+      "commission": "SHA",
+      "text": "Инвойс DEMO-INV-002 от 20.10.2026 к договору DEMO-CT-002. Поставщик и получатель: Northstar Demo Supplies Ltd. Покупатель: ТОО «Орбита Демо». Сумма: 25 500 USD. Банк: West Demo Bank, SWIFT DEMOGB00. Счёт получателя не указан. Демонстрационный документ."
+    }
+  },
+  {
+    "id": "amount-conflict",
+    "title": "Сумма превышает договор",
+    "description": "Инвойс на 52 000 USD при общей сумме договора 51 000 USD.",
+    "contract": {
+      "number": "DEMO-CT-003",
+      "date": "2026-10-15",
+      "buyer": "ТОО «Орбита Демо»",
+      "seller": "Northstar Demo Supplies Ltd",
+      "currency": "USD",
+      "total": 51000,
+      "subject": "Промышленное оборудование и комплектующие",
+      "paymentTerms": "Оплата по условиям инвойса",
+      "sellerCountry": "GB",
+      "unk": null,
+      "text": "Договор DEMO-CT-003 от 15.10.2026. Покупатель: ТОО «Орбита Демо». Продавец: Northstar Demo Supplies Ltd, Великобритания. Предмет: промышленное оборудование и комплектующие. Общая стоимость: 51 000 USD. Оплата по условиям инвойса. УНК: сведения не представлены. Образец для демонстрации."
+    },
+    "invoice": {
+      "number": "DEMO-INV-003",
+      "date": "2026-10-20",
+      "contractNumber": "DEMO-CT-003",
+      "seller": "Northstar Demo Supplies Ltd",
+      "buyer": "ТОО «Орбита Демо»",
+      "currency": "USD",
+      "amount": 52000,
+      "description": "Партия промышленного оборудования",
+      "beneficiaryName": "Northstar Demo Supplies Ltd",
+      "beneficiaryIban": "GB00DEMO00000000000000",
+      "beneficiaryBank": "West Demo Bank",
+      "beneficiarySwift": "DEMOGB00",
+      "beneficiaryCountry": "GB",
+      "commission": "SHA",
+      "text": "Инвойс DEMO-INV-003 от 20.10.2026 к договору DEMO-CT-003. Поставщик и получатель: Northstar Demo Supplies Ltd. Покупатель: ТОО «Орбита Демо». Сумма: 52 000 USD. Банк: West Demo Bank, SWIFT DEMOGB00, учебный IBAN GB00DEMO00000000000000. Демонстрационный документ."
+    }
+  }
+]

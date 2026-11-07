@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import {
   Building2,
+  BadgeCheck,
   Check,
   CheckCircle2,
   ChevronDown,

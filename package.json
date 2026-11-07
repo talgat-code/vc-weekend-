@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "api": "node server/index.js",
+    "check": "node --test server/analysis.test.js",
     "build": "vite build",
     "preview": "vite preview"
   },
