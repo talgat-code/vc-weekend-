@@ -4,16 +4,16 @@ export default {
   theme: {
     extend: {
       colors: {
-        canvas: "#F7F6F3",
-        ink: "#1B2A4A",
-        action: "#00B972",
-        brand: "#00B972",
-        success: "#3F6B52",
-        danger: "#B5533C",
-        line: "#DCD8D0",
+        canvas: "#F3F5F4",
+        ink: "#18201D",
+        action: "#00A86B",
+        brand: "#00A86B",
+        success: "#16875F",
+        danger: "#D04A3A",
+        line: "rgba(24, 32, 29, 0.1)",
       },
       fontFamily: {
-        sans: ["Inter", "sans-serif"],
+        sans: ["-apple-system", "BlinkMacSystemFont", "SF Pro Display", "Segoe UI", "sans-serif"],
       },
     },
   },
