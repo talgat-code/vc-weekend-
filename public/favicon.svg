@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">BCC Business AI ВЭД</title>
+  <desc id="desc">Минималистичная зелёная геометрическая метка из двух вложенных треугольных форм</desc>
+  <rect width="64" height="64" rx="14" fill="#1B2A4A"/>
+  <path fill="#00B972" d="M32 8.5c2.2 0 4.2 1.2 5.3 3.1l18.2 31.6c2.4 4.1-.6 9.2-5.3 9.2H13.8c-4.7 0-7.7-5.1-5.3-9.2l18.2-31.6A6.1 6.1 0 0 1 32 8.5Z"/>
+  <path fill="#1B2A4A" d="M32 20.5c1 0 1.9.5 2.4 1.4l9.9 17.2c1.1 1.9-.3 4.2-2.4 4.2H22.1c-2.1 0-3.5-2.3-2.4-4.2l9.9-17.2a2.8 2.8 0 0 1 2.4-1.4Z"/>
+  <path fill="#00B972" d="M32 28.6 37.2 38h-10.4l5.2-9.4Z"/>
+</svg>

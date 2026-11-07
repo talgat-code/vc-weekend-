@@ -6,7 +6,8 @@ export default {
       colors: {
         canvas: "#F7F6F3",
         ink: "#1B2A4A",
-        action: "#B8862E",
+        action: "#00B972",
+        brand: "#00B972",
         success: "#3F6B52",
         danger: "#B5533C",
         line: "#DCD8D0",

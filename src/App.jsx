@@ -75,7 +75,7 @@ function formatNumber(value) {
 }
 
 function extractPurposeAmount(text) {
-  const match = text.match(/([\d][\d\s.,]*)\s*USD/i);
+  const match = text.match(/(\d{1,3}(?:[\s\u00a0]\d{3})+|\d+(?:[.,]\d+)?)\s*USD\b/i);
   if (!match) return null;
   const amount = Number(match[1].replace(/[\s,]/g, ""));
   return Number.isFinite(amount) ? amount : null;
@@ -238,7 +238,7 @@ function ContractStep({
         <h3>Данные договора</h3>
         <span>Проверьте перед продолжением</span>
       </div>
-      <div className="form-grid">
+      <div className="form-grid grid grid-cols-1 sm:grid-cols-2">
         <Field id="contract-number" label="Номер валютного договора" required marker={fromAI ? "Введите вручную" : undefined}>
           <Input id="contract-number" value={contractNumber} onChange={(event) => setContractNumber(event.target.value)} placeholder="Например, ВЭД-2026-041" />
         </Field>
@@ -297,7 +297,7 @@ function ApplicationStep({ application, setApplication }) {
         description="Укажите реквизиты документа и приложите инвойс или другой документ, который подтверждает платёж."
       />
 
-      <div className="form-grid">
+      <div className="form-grid grid grid-cols-1 sm:grid-cols-2">
         <Field id="application-number" label="Номер документа" required>
           <Input id="application-number" value={application.number} onChange={(event) => update("number", event.target.value)} />
         </Field>
@@ -377,7 +377,7 @@ function PaymentStep({ payment, setPayment, signers, setSigners, consent, setCon
       update("purpose", `${payment.purpose.trim()} ${amountText}`.trim());
       return;
     }
-    update("purpose", payment.purpose.replace(/[\d][\d\s.,]*\s*USD/i, amountText));
+    update("purpose", payment.purpose.replace(/(\d{1,3}(?:[\s\u00a0]\d{3})+|\d+(?:[.,]\d+)?)\s*USD\b/i, amountText));
   }
 
   return (
@@ -397,7 +397,7 @@ function PaymentStep({ payment, setPayment, signers, setSigners, consent, setCon
       </div>}
       {amountDiffers && <div className="ai-stop" role="alert"><strong>Сумма перевода отличается от инвойса.</strong><p>По демо-инвойсу указано {formatNumber(invoiceAmount)} USD. Проверьте введённую сумму.</p></div>}
 
-      <div className="form-grid payment-grid">
+      <div className="form-grid payment-grid grid grid-cols-1 sm:grid-cols-2">
         <Field id="debit-account" label="Счёт списания" required>
           <Select id="debit-account" value={payment.debitAccount} onChange={(event) => update("debitAccount", event.target.value)}>
             <option>KZ14998CTB0000012847 — USD</option>
@@ -568,7 +568,7 @@ function StatusStep({ application, payment, contractData, contractNumber, onBack
 function Aside({ step, contractNumber, payment, application }) {
   const isStatus = step === 4;
   return (
-    <aside className="side-column">
+    <aside className="side-column grid grid-cols-1">
       {!isStatus ? (
         <>
           <section className="summary-panel">
@@ -698,7 +698,7 @@ function App() {
   }
 
   return (
-    <div className="app-shell min-h-screen bg-canvas font-sans text-ink">
+    <div className="app-shell min-h-screen overflow-x-hidden bg-canvas font-sans text-ink">
       <header className="topbar">
         <div className="brand-lockup">
           <span className="brand-mark" aria-hidden="true">bcc</span>
@@ -727,7 +727,7 @@ function App() {
 
         <ProgressStepper current={step} onGoTo={setStep} />
 
-        <div className="workspace-grid">
+        <div className="workspace-grid grid min-w-0 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px]">
           <section className="main-panel" aria-label={`Шаг ${step}: ${steps[step - 1]}`}>
             {step === 1 && (
               <ContractStep
