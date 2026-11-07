@@ -105,11 +105,22 @@ async def analyze(
         data[stage]["document_id"] = str(uuid.uuid4())
         data[stage]["filename"] = filename
         data[stage]["document_type"] = kind.value
-        data[stage]["fields"].update({key: value.model_dump(mode="json") for key, value in extracted.items()})
+        previous_fields = data[stage]["fields"]
+        merged_fields = {}
+        for key, value in extracted.items():
+            previous = previous_fields.get(key)
+            if previous and previous.get("confirmed_by_user"):
+                merged_fields[key] = previous
+            else:
+                merged_fields[key] = value.model_dump(mode="json")
+        data[stage]["fields"] = merged_fields
         if stage == "invoice":
-            amount = extracted.get("invoice_amount") or extracted.get("amount")
-            currency = extracted.get("invoice_currency") or extracted.get("currency")
-            data["payment"]["underlying"].update({"invoice_amount": amount.value if amount else None, "invoice_currency": currency.value if currency else None})
+            amount = merged_fields.get("invoice_amount") or merged_fields.get("amount")
+            currency = merged_fields.get("invoice_currency") or merged_fields.get("currency")
+            data["payment"]["underlying"].update({
+                "invoice_amount": amount.get("value") if amount else None,
+                "invoice_currency": currency.get("value") if currency else None,
+            })
         analyzed_names.append(filename)
     data["mode"] = mode
     result = canonicalize(data)
@@ -117,7 +128,8 @@ async def analyze(
         request.app.state.repository.save_workflow(session_id, result)
     else:
         request.app.state.repository.create_workflow(session_id, result)
-    request.app.state.repository.add_audit(session_id, result["analysis_id"], "ai" if mode == "openai" else "system", "document_analyzed", "contract", None, None, analyzed_names)
+    audit_step = uploads[0][0].value if len(uploads) == 1 else "documents"
+    request.app.state.repository.add_audit(session_id, result["analysis_id"], "ai" if mode == "openai" else "system", "document_analyzed", audit_step, None, None, analyzed_names)
     return result
 
 
@@ -139,6 +151,25 @@ def _get(request: Request, session_id: str, analysis_id: str) -> dict:
 @router.get("/workflows/{analysis_id}", response_model=WorkflowResponse, tags=["workflow"])
 def get_workflow(analysis_id: str, request: Request, session_id: SessionId):
     return _get(request, session_id, analysis_id)
+
+
+@router.delete("/workflows/{analysis_id}/documents/{document_type}", response_model=WorkflowResponse, tags=["workflow"])
+def delete_document(document_type: DocumentType, analysis_id: str, request: Request, session_id: SessionId):
+    if document_type not in {DocumentType.CONTRACT, DocumentType.INVOICE}:
+        raise HTTPException(422, {"code": "DOCUMENT_TYPE_INVALID", "message": "Можно удалить только договор или инвойс."})
+    data = _get(request, session_id, analysis_id)
+    stage = document_type.value
+    previous = data[stage].get("filename")
+    data[stage].update({"document_id": None, "filename": None, "fields": {}})
+    if document_type == DocumentType.INVOICE:
+        data["payment"]["underlying"].update({"invoice_amount": None, "invoice_currency": None})
+        supporting = data["application"]["fields"].get("supporting_documents")
+        if supporting:
+            supporting.update(value=[], status="confirmed", confirmed_by_user=True, source_document="api-input")
+    result = canonicalize(data)
+    request.app.state.repository.save_workflow(session_id, result)
+    request.app.state.repository.add_audit(session_id, analysis_id, "user", "document_removed", stage, None, previous, None)
+    return result
 
 
 @router.patch("/workflows/{analysis_id}", response_model=WorkflowResponse, tags=["workflow"])

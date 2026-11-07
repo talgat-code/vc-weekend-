@@ -80,6 +80,14 @@ def _value(record: dict[str, Any], name: str) -> Any:
     return field.get("value") if isinstance(field, dict) else None
 
 
+def _normalized(value: Any) -> str:
+    return re.sub(r"[^A-ZА-Я0-9]", "", str(value or "").upper())
+
+
+def _different(left: Any, right: Any) -> bool:
+    return bool(left and right and _normalized(left) != _normalized(right))
+
+
 def evaluate_workflow(data: dict[str, Any]) -> tuple[list[Issue], list[str]]:
     issues: list[Issue] = []
     payment = data["payment"]["fields"]
@@ -90,6 +98,40 @@ def evaluate_workflow(data: dict[str, Any]) -> tuple[list[Issue], list[str]]:
     contract_amount_raw = _value(data["contract"], "contract_amount") or _value(data["contract"], "amount")
     contract_currency = _value(data["contract"], "contract_currency") or _value(data["contract"], "currency")
     contract_amount = decimal_value(contract_amount_raw)
+
+    for step in ("contract", "invoice"):
+        for field_id, field in data[step].get("fields", {}).items():
+            if field.get("status") == "needs_verification":
+                issues.append(_issue("BILINGUAL_VALUE_CONFLICT", "blocking", "Версии документа содержат разные значения",
+                    "В русской и английской версиях этого реквизита указаны разные данные.", [field_id],
+                    "Сверьте обе языковые версии и внесите подтверждённое значение вручную.", "contract" if step == "contract" else "application"))
+
+    contract_seller = _value(data["contract"], "seller_name") or _value(data["contract"], "beneficiary_name")
+    invoice_seller = _value(data["invoice"], "seller_name") or _value(data["invoice"], "beneficiary_name")
+    if _different(contract_seller, invoice_seller):
+        issues.append(_issue("SELLER_DETAILS_CONFLICT", "warning", "Поставщик в документах отличается",
+            "Наименование продавца в договоре не совпадает с инвойсом.", ["seller_name", "beneficiary_name"],
+            "Сверьте стороны сделки в обоих документах и подтвердите правильное наименование.", "application"))
+
+    contract_number = _value(data["contract"], "contract_number")
+    invoice_contract_number = _value(data["invoice"], "contract_number")
+    if _different(contract_number, invoice_contract_number):
+        issues.append(_issue("CONTRACT_REFERENCE_MISMATCH", "warning", "Инвойс ссылается на другой договор",
+            "Номер договора в инвойсе отличается от выбранного валютного договора.", ["contract_number"],
+            "Проверьте ссылку на договор в инвойсе.", "application"))
+
+    if contract_currency and invoice_currency and str(contract_currency).upper() != str(invoice_currency).upper():
+        issues.append(_issue("DOCUMENT_CURRENCY_MISMATCH", "blocking", "Валюты документов не совпадают",
+            f"В договоре указана валюта {contract_currency}, а в инвойсе — {invoice_currency}.",
+            ["contract_currency", "invoice_currency"], "Проверьте валюту в обоих документах и подтвердите правильные данные.", "payment"))
+
+    for field_id, title in (("beneficiary_account", "Счёт получателя отличается"), ("beneficiary_swift", "SWIFT получателя отличается")):
+        contract_value = _value(data["contract"], field_id)
+        invoice_value = _value(data["invoice"], field_id)
+        if _different(contract_value, invoice_value):
+            issues.append(_issue("BENEFICIARY_DETAILS_CONFLICT", "blocking", title,
+                "Банковские реквизиты получателя в договоре и инвойсе не совпадают.", [field_id],
+                "Не выбирайте значение автоматически. Сверьте реквизиты с поставщиком и внесите подтверждённые данные.", "payment"))
 
     required = ["debit_account", "transfer_amount", "value_date", "beneficiary_bank_swift", "knp", "payment_purpose",
                 "supporting_document_number", "supporting_document_date", "beneficiary_name", "beneficiary_residency_country",

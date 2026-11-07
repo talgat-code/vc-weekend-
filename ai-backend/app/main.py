@@ -56,7 +56,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # allows teammates to open the Vite host from another device.
     app.add_middleware(
         CORSMiddleware, allow_origins=["*"], allow_credentials=False,
-        allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "X-Session-Token", "X-Request-ID"], expose_headers=["X-Request-ID"],
     )
 

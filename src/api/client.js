@@ -57,24 +57,32 @@ async function request(path, options = {}) {
   return data;
 }
 
-export function createWorkflow(payload) {
-  return request("/workflows", { method: "POST", body: JSON.stringify(payload) });
+export function createWorkflow(payload, signal) {
+  return request("/workflows", { method: "POST", body: JSON.stringify(payload), signal });
 }
 
-export function updateWorkflow(analysisId, payload) {
-  return request(`/workflows/${encodeURIComponent(analysisId)}`, { method: "PATCH", body: JSON.stringify(payload) });
+export function updateWorkflow(analysisId, payload, signal) {
+  return request(`/workflows/${encodeURIComponent(analysisId)}`, { method: "PATCH", body: JSON.stringify(payload), signal });
 }
 
-export function validateWorkflow(analysisId) {
-  return request(`/workflows/${encodeURIComponent(analysisId)}/validate`, { method: "POST" });
+export function validateWorkflow(analysisId, signal) {
+  return request(`/workflows/${encodeURIComponent(analysisId)}/validate`, { method: "POST", signal });
 }
 
-export function analyzeDocument(file, documentType, analysisId) {
+export function analyzeDocument(file, documentType, analysisId, signal) {
+  return analyzeDocuments({ [`${documentType}File`]: file }, analysisId, signal);
+}
+
+export function analyzeDocuments({ contractFile, invoiceFile }, analysisId, signal) {
   const body = new FormData();
-  body.append("document_type", documentType);
-  body.append("file", file);
+  if (contractFile) body.append("contract_file", contractFile);
+  if (invoiceFile) body.append("invoice_file", invoiceFile);
   if (analysisId) body.append("analysis_id", analysisId);
-  return request("/analyze", { method: "POST", body });
+  return request("/analyze", { method: "POST", body, signal });
+}
+
+export function deleteWorkflowDocument(analysisId, documentType) {
+  return request(`/workflows/${encodeURIComponent(analysisId)}/documents/${encodeURIComponent(documentType)}`, { method: "DELETE" });
 }
 
 export function normalizeWorkflow(workflow) {

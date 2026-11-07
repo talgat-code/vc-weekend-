@@ -13,7 +13,7 @@ import {
   Upload,
 } from "lucide-react";
 import { Button, Checkbox, Field, HelpTooltip, Input, SectionTitle, Select, Textarea, Toggle } from "./components/ui.jsx";
-import { analyzeDocument, createWorkflow, getSessionToken, normalizeWorkflow, updateWorkflow, validateWorkflow } from "./api/client.js";
+import { analyzeDocument, createWorkflow, deleteWorkflowDocument, getSessionToken, normalizeWorkflow, updateWorkflow, validateWorkflow } from "./api/client.js";
 import caseFixtures from "../data/cases.json";
 
 const steps = ["Валютный договор", "Заявление", "Платёж", "Статус"];
@@ -40,10 +40,17 @@ const contracts = [
 
 const initialContract = {
   company: "ТОО «Orda Export»",
+  contractDate: defaultCase.contract.date,
+  buyerCountry: "Казахстан",
   counterparty: defaultCase.contract.seller,
+  sellerCountry: defaultCase.contract.sellerCountry,
   amount: String(defaultCase.contract.total),
   currency: "USD",
   endDate: "31.12.2026",
+  subject: defaultCase.contract.subject,
+  paymentTerms: defaultCase.contract.paymentTerms,
+  deliveryTerms: "",
+  registrationNumber: defaultCase.contract.unk || "",
   bank: defaultCase.invoice.beneficiaryBank,
   swift: defaultCase.invoice.beneficiarySwift,
   account: defaultCase.invoice.beneficiaryIban,
@@ -75,15 +82,17 @@ function formatNumber(value) {
   return Number.isFinite(parsed) ? new Intl.NumberFormat("ru-RU").format(parsed) : value;
 }
 
-function extractPurposeAmount(text) {
-  const match = text.match(/(\d{1,3}(?:[\s\u00a0]\d{3})+|\d+(?:[.,]\d+)?)\s*USD\b/i);
+function extractPurposeAmount(text, currency = "USD") {
+  const escapedCurrency = String(currency || "USD").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = text.match(new RegExp(`(\\d{1,3}(?:[\\s\\u00a0]\\d{3})+|\\d+(?:[.,]\\d+)?)\\s*${escapedCurrency}\\b`, "i"));
   if (!match) return null;
   const amount = Number(match[1].replace(/[\s,]/g, ""));
   return Number.isFinite(amount) ? amount : null;
 }
 
 function extractedValue(record, key, fallback = "") {
-  return record?.fields?.[key]?.value ?? fallback;
+  if (!record?.fields || !Object.prototype.hasOwnProperty.call(record.fields, key)) return fallback;
+  return record.fields[key]?.value ?? "";
 }
 
 function splitDocumentReference(value, fallbackNumber, fallbackDate) {
@@ -100,15 +109,21 @@ function buildWorkflowPayload({ activeCase, invoiceData, contractData, contractN
     mode: "deterministic",
     contract: {
       contract_number: contractNumber,
+      contract_date: contractData.contractDate,
+      buyer_name: contractData.company,
+      buyer_country: contractData.buyerCountry,
       seller_name: contractData.counterparty,
+      seller_country: contractData.sellerCountry,
       contract_amount: contractData.amount,
       contract_currency: contractData.currency,
       contract_expiry_date: contractData.endDate,
       beneficiary_bank_name: contractData.bank,
       beneficiary_swift: contractData.swift,
       beneficiary_account: contractData.account,
-      contract_registration_number: null,
-      contract_subject: activeCase.contract.subject,
+      contract_registration_number: contractData.registrationNumber || null,
+      contract_subject: contractData.subject,
+      payment_terms: contractData.paymentTerms,
+      delivery_terms: contractData.deliveryTerms,
     },
     application: {
       document_number: application.number,
@@ -122,10 +137,14 @@ function buildWorkflowPayload({ activeCase, invoiceData, contractData, contractN
       invoice_date: application.date || sourceInvoice.date,
       invoice_amount: String(sourceInvoice.amount ?? ""),
       invoice_currency: sourceInvoice.currency,
-      seller_name: sourceInvoice.beneficiaryName,
-      beneficiary_name: payment.recipient,
-      beneficiary_account: payment.iban,
-      beneficiary_swift: payment.swift,
+      contract_number: sourceInvoice.contractNumber,
+      seller_name: sourceInvoice.seller || sourceInvoice.beneficiaryName,
+      buyer_name: sourceInvoice.buyer,
+      description: sourceInvoice.description,
+      beneficiary_bank_name: sourceInvoice.beneficiaryBank,
+      beneficiary_name: sourceInvoice.beneficiaryName,
+      beneficiary_account: sourceInvoice.beneficiaryIban,
+      beneficiary_swift: sourceInvoice.beneficiarySwift,
       beneficiary_country: sourceInvoice.beneficiaryCountry,
     },
     payment: {
@@ -155,6 +174,28 @@ function buildWorkflowPayload({ activeCase, invoiceData, contractData, contractN
       agreement_accepted: consent,
     },
   };
+}
+
+function dirtyFieldsForStage(stage, dirtyFields) {
+  const fieldMap = {
+    contract: {
+      contract_number: "contract.contractNumber", contract_date: "contract.contractDate", buyer_name: "contract.company",
+      buyer_country: "contract.buyerCountry", seller_name: "contract.counterparty", seller_country: "contract.sellerCountry",
+      contract_amount: "contract.amount", contract_currency: "contract.currency", contract_expiry_date: "contract.endDate",
+      contract_subject: "contract.subject", payment_terms: "contract.paymentTerms", delivery_terms: "contract.deliveryTerms",
+      beneficiary_bank_name: "contract.bank", beneficiary_swift: "contract.swift", beneficiary_account: "contract.account",
+      contract_registration_number: "contract.registrationNumber",
+    },
+    application: { document_number: "application.number", document_date: "application.date", linked_to_contract: "application.linked" },
+    invoice: {
+      invoice_number: "application.number", invoice_date: "application.date", invoice_amount: "invoice.amount",
+      invoice_currency: "invoice.currency", contract_number: "invoice.contractNumber", seller_name: "invoice.seller",
+      buyer_name: "invoice.buyer", description: "invoice.description", beneficiary_name: "invoice.beneficiaryName",
+      beneficiary_bank_name: "invoice.beneficiaryBank", beneficiary_account: "invoice.beneficiaryIban",
+      beneficiary_swift: "invoice.beneficiarySwift",
+    },
+  };
+  return Object.entries(fieldMap[stage] || {}).filter(([, dirtyKey]) => dirtyFields.has(dirtyKey)).map(([field]) => field);
 }
 
 function ProgressStepper({ current, onGoTo }) {
@@ -202,18 +243,22 @@ function ContractStep({
   contractFile,
   setContractFile,
   onAnalyzeFile,
+  onRemoveDocument,
+  onUserEdit,
+  documentState,
   apiState,
 }) {
   const fileInput = useRef(null);
   const fromAI = contractSource === "ai";
-  const update = (key, value) => setContractData((current) => ({ ...current, [key]: value }));
+  const update = (key, value) => {
+    onUserEdit?.(`contract.${key}`);
+    setContractData((current) => ({ ...current, [key]: value }));
+  };
 
   function handleFile(event) {
     const file = event.target.files?.[0];
     if (!file) return;
     setContractSource("ai");
-    setContractData({ ...initialContract });
-    setContractNumber("");
     setContractFile(file.name);
     event.target.value = "";
     // Send the selected document to the local AI backend for extraction.
@@ -251,7 +296,7 @@ function ContractStep({
           ref={fileInput}
           className="visually-hidden"
           type="file"
-          accept=".pdf,.docx,.txt"
+          accept=".pdf,.docx"
           onChange={handleFile}
           aria-label="Выберите файл валютного договора"
         />
@@ -285,14 +330,24 @@ function ContractStep({
             </button>
           ))}
         </div>
-      ) : (
+      ) : contractFile ? (
         <div className="upload-summary">
-          <span className="upload-summary-icon"><FileCheck2 size={19} /></span>
+          <span className="upload-summary-icon">{documentState?.status === "analyzing" ? <span className="document-spinner" /> : <FileCheck2 size={19} />}</span>
           <span className="upload-summary-copy">
             <strong>{contractFile || "Договор выбран для разбора"}</strong>
-            <span>Помощник извлёк поля из файла. Сверьте каждое значение с оригиналом.</span>
+            <span>{documentState?.status === "analyzing" ? "AI анализирует договор…" : documentState?.status === "error" ? documentState.error : "Анализ завершён. Сверьте предложенные значения с оригиналом."}</span>
           </span>
-          <BadgeCheck size={19} className="success-icon" />
+          <div className="document-actions">
+            <button type="button" className="text-button" onClick={() => fileInput.current?.click()}>Заменить</button>
+            <button type="button" className="text-button" onClick={() => onRemoveDocument?.("contract")}>Удалить</button>
+          </div>
+          {documentState?.status === "analyzed" && <BadgeCheck size={19} className="success-icon" />}
+        </div>
+      ) : (
+        <div className="upload-area document-upload-empty">
+          <span className="upload-area-icon"><Upload size={19} /></span>
+          <div className="upload-area-copy"><strong>Загрузите валютный договор</strong><span>PDF или DOCX, включая двуязычные документы и таблицы.</span></div>
+          <Button variant="secondary" onClick={() => fileInput.current?.click()}>Выбрать файл</Button>
         </div>
       )}
 
@@ -302,13 +357,22 @@ function ContractStep({
       </div>
       <div className="form-grid grid grid-cols-1 sm:grid-cols-2">
         <Field id="contract-number" label="Номер валютного договора" required marker={fromAI ? "Введите вручную" : undefined}>
-          <Input id="contract-number" value={contractNumber} onChange={(event) => setContractNumber(event.target.value)} placeholder="Например, ВЭД-2026-041" />
+          <Input id="contract-number" value={contractNumber} onChange={(event) => { onUserEdit?.("contract.contractNumber"); setContractNumber(event.target.value); }} placeholder="Например, ВЭД-2026-041" />
         </Field>
         <Field id="contract-company" label="Сторона в Казахстане" marker={fromAI && <SourceHint />}>
           <Input id="contract-company" value={contractData.company} onChange={(event) => update("company", event.target.value)} />
         </Field>
         <Field id="contract-counterparty" label="Иностранный контрагент" marker={fromAI && <SourceHint />}>
           <Input id="contract-counterparty" value={contractData.counterparty} onChange={(event) => update("counterparty", event.target.value)} />
+        </Field>
+        <Field id="contract-date" label="Дата договора" marker={fromAI && <SourceHint />}>
+          <Input id="contract-date" value={contractData.contractDate} onChange={(event) => update("contractDate", event.target.value)} placeholder="ГГГГ-ММ-ДД" />
+        </Field>
+        <Field id="contract-countries" label="Страны покупателя и продавца" marker={fromAI && <SourceHint />}>
+          <div className="input-combo">
+            <Input value={contractData.buyerCountry} onChange={(event) => update("buyerCountry", event.target.value)} aria-label="Страна покупателя" />
+            <Input value={contractData.sellerCountry} onChange={(event) => update("sellerCountry", event.target.value)} aria-label="Страна продавца" />
+          </div>
         </Field>
         <div className="field">
           <div className="field-heading">
@@ -335,16 +399,35 @@ function ContractStep({
             update("account", account.join("—").trim());
           }} />
         </Field>
+        <Field id="contract-subject" label="Предмет договора" className="field-span-2" marker={fromAI && <SourceHint />}>
+          <Textarea id="contract-subject" value={contractData.subject} onChange={(event) => update("subject", event.target.value)} rows={2} />
+        </Field>
+        <Field id="contract-payment-terms" label="Условия оплаты" marker={fromAI && <SourceHint />}>
+          <Input id="contract-payment-terms" value={contractData.paymentTerms} onChange={(event) => update("paymentTerms", event.target.value)} />
+        </Field>
+        <Field id="contract-delivery-terms" label="Условия поставки" marker={fromAI && <SourceHint />}>
+          <Input id="contract-delivery-terms" value={contractData.deliveryTerms} onChange={(event) => update("deliveryTerms", event.target.value)} />
+        </Field>
+        <Field id="contract-registration-number" label="УНК" marker={fromAI && <SourceHint />}>
+          <Input id="contract-registration-number" value={contractData.registrationNumber} onChange={(event) => update("registrationNumber", event.target.value)} placeholder="Если присвоен" />
+        </Field>
       </div>
       {fromAI && !contractNumber && <p className="form-note"><CircleHelp size={15} /> Номер договора не найден в выбранном фрагменте. Введите его так, как он указан в подписанном документе.</p>}
     </div>
   );
 }
 
-function ApplicationStep({ application, setApplication, onAnalyzeFile }) {
+function ApplicationStep({ application, setApplication, invoiceData, setInvoiceData, onAnalyzeFile, onRemoveDocument, onUserEdit, documentState }) {
   const fileInput = useRef(null);
   const missingFile = !application.fileName;
-  const update = (key, value) => setApplication((current) => ({ ...current, [key]: value }));
+  const update = (key, value) => {
+    onUserEdit?.(`application.${key}`);
+    setApplication((current) => ({ ...current, [key]: value }));
+  };
+  const updateInvoice = (key, value) => {
+    onUserEdit?.(`invoice.${key}`);
+    setInvoiceData((current) => ({ ...current, [key]: value }));
+  };
 
   function handleFile(event) {
     const file = event.target.files?.[0];
@@ -359,7 +442,7 @@ function ApplicationStep({ application, setApplication, onAnalyzeFile }) {
     <div className="step-content">
       <SectionTitle
         title="Подготовьте заявление"
-        description="Укажите реквизиты документа и приложите инвойс или другой документ, который подтверждает платёж."
+        description="Укажите реквизиты и отдельно загрузите инвойс, который подтверждает сумму и получателя платежа."
       />
 
       <div className="form-grid grid grid-cols-1 sm:grid-cols-2">
@@ -392,25 +475,55 @@ function ApplicationStep({ application, setApplication, onAnalyzeFile }) {
       </div>
 
       <div className="form-section-heading">
-        <div className="heading-with-help"><h3>Подтверждающие документы</h3><HelpTooltip text="Приложите инвойс или другой документ, который подтверждает сумму, получателя и назначение платежа." label="Пояснение: подтверждающие документы" /></div>
-        <span>PDF, DOCX или TXT</span>
+        <div className="heading-with-help"><h3>Инвойс</h3><HelpTooltip text="Инвойс анализируется отдельно от договора, после чего реквизиты двух документов автоматически сверяются." label="Пояснение: инвойс" /></div>
+        <span>PDF или DOCX</span>
       </div>
       {missingFile ? (
         <div className="upload-area">
           <span className="upload-area-icon"><Upload size={19} /></span>
           <div className="upload-area-copy">
-            <div className="block-title-row"><strong>Добавьте инвойс или подтверждающий документ</strong><HelpTooltip text="Документ нужен, чтобы банк мог сверить платёж с реальной поставкой или услугой." label="Пояснение: загрузка документа" /></div>
-            <span>Выберите файл PDF, JPG или PNG с реквизитами поставки.</span>
+            <div className="block-title-row"><strong>Загрузите инвойс</strong><HelpTooltip text="Документ нужен, чтобы сверить сумму платежа, стороны и банковские реквизиты с договором." label="Пояснение: загрузка инвойса" /></div>
+            <span>Выберите PDF или DOCX. Таблицы и русско-английские версии поддерживаются.</span>
           </div>
           <Button variant="secondary" onClick={() => fileInput.current?.click()}>Выбрать файл</Button>
-          <input ref={fileInput} className="visually-hidden" type="file" accept=".pdf,.docx,.txt" onChange={handleFile} aria-label="Загрузить подтверждающий документ" />
+          <input ref={fileInput} className="visually-hidden" type="file" accept=".pdf,.docx" onChange={handleFile} aria-label="Загрузить инвойс" />
         </div>
       ) : (
         <div className="attached-file">
           <span className="attached-file-icon"><FileText size={18} /></span>
           <span className="attached-file-name">{application.fileName}</span>
-          <span className="attached-file-status"><CheckCircle2 size={15} /> Добавлен</span>
-          <button type="button" className="text-button" onClick={() => update("fileName", "")}>Удалить</button>
+          <span className="attached-file-status">{documentState?.status === "analyzing" ? <><span className="document-spinner" /> Анализируется</> : documentState?.status === "error" ? "Ошибка анализа" : <><CheckCircle2 size={15} /> Анализ завершён</>}</span>
+          <button type="button" className="text-button" onClick={() => fileInput.current?.click()}>Заменить</button>
+          <button type="button" className="text-button" onClick={() => onRemoveDocument?.("invoice")}>Удалить</button>
+        </div>
+      )}
+      {!missingFile && (
+        <div className="form-grid grid grid-cols-1 sm:grid-cols-2 invoice-fields">
+          <Field id="invoice-amount" label="Сумма и валюта инвойса" marker={<SourceHint />}>
+            <div className="input-combo">
+              <Input id="invoice-amount" value={invoiceData.amount ?? ""} onChange={(event) => updateInvoice("amount", event.target.value)} inputMode="decimal" />
+              <Input value={invoiceData.currency ?? ""} onChange={(event) => updateInvoice("currency", event.target.value)} aria-label="Валюта инвойса" />
+            </div>
+          </Field>
+          <Field id="invoice-seller" label="Продавец" marker={<SourceHint />}>
+            <Input id="invoice-seller" value={invoiceData.seller ?? ""} onChange={(event) => updateInvoice("seller", event.target.value)} />
+          </Field>
+          <Field id="invoice-beneficiary" label="Получатель" marker={<SourceHint />}>
+            <Input id="invoice-beneficiary" value={invoiceData.beneficiaryName ?? ""} onChange={(event) => updateInvoice("beneficiaryName", event.target.value)} />
+          </Field>
+          <Field id="invoice-bank" label="Банк получателя" marker={<SourceHint />}>
+            <Input id="invoice-bank" value={invoiceData.beneficiaryBank ?? ""} onChange={(event) => updateInvoice("beneficiaryBank", event.target.value)} />
+          </Field>
+          <Field id="invoice-bank-details" label="SWIFT и счёт" className="field-span-2" marker={<SourceHint />}>
+            <Input id="invoice-bank-details" value={`${invoiceData.beneficiarySwift ?? ""} — ${invoiceData.beneficiaryIban ?? ""}`} onChange={(event) => {
+              const [swift = "", ...account] = event.target.value.split("—");
+              updateInvoice("beneficiarySwift", swift.trim());
+              updateInvoice("beneficiaryIban", account.join("—").trim());
+            }} />
+          </Field>
+          <Field id="invoice-description" label="Описание поставки" className="field-span-2" marker={<SourceHint />}>
+            <Textarea id="invoice-description" value={invoiceData.description ?? ""} onChange={(event) => updateInvoice("description", event.target.value)} rows={2} />
+          </Field>
         </div>
       )}
 
@@ -428,12 +541,15 @@ function ApplicationStep({ application, setApplication, onAnalyzeFile }) {
   );
 }
 
-function PaymentStep({ payment, setPayment, signers, setSigners, consent, setConsent, onSubmit, analysis, invoice }) {
-  const purposeAmount = extractPurposeAmount(payment.purpose);
-  const invoiceAmount = invoice.amount;
-  const mismatch = purposeAmount !== invoiceAmount;
+function PaymentStep({ payment, setPayment, signers, setSigners, consent, setConsent, onSubmit, analysis, invoice, onUserEdit }) {
+  const invoiceAmount = Number(invoice.amount);
+  const purposeAmount = extractPurposeAmount(payment.purpose, invoice.currency);
+  const mismatch = purposeAmount !== null && purposeAmount !== invoiceAmount;
   const amountDiffers = Number(payment.amount) !== invoiceAmount;
-  const update = (key, value) => setPayment((current) => ({ ...current, [key]: value }));
+  const update = (key, value) => {
+    onUserEdit?.(`payment.${key}`);
+    setPayment((current) => ({ ...current, [key]: value }));
+  };
 
   function correctPurpose() {
     const amountText = `${formatNumber(invoiceAmount)} ${invoice.currency}`;
@@ -441,7 +557,8 @@ function PaymentStep({ payment, setPayment, signers, setSigners, consent, setCon
       update("purpose", `${payment.purpose.trim()} ${amountText}`.trim());
       return;
     }
-    update("purpose", payment.purpose.replace(/(\d{1,3}(?:[\s\u00a0]\d{3})+|\d+(?:[.,]\d+)?)\s*USD\b/i, amountText));
+    const escapedCurrency = String(invoice.currency || "USD").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    update("purpose", payment.purpose.replace(new RegExp(`(\\d{1,3}(?:[\\s\\u00a0]\\d{3})+|\\d+(?:[.,]\\d+)?)\\s*${escapedCurrency}\\b`, "i"), amountText));
   }
 
   return (
@@ -455,7 +572,7 @@ function PaymentStep({ payment, setPayment, signers, setSigners, consent, setCon
         <span className="missing-notice-icon"><ShieldCheck size={17} /></span>
         <div>
           <strong>Проверка документов: {analysis.metrics.autoFilledCount} полей предложено, {analysis.metrics.blockingCount} критичных расхождений</strong>
-          {analysis.issues.map((item) => <p key={item.code}>{item.message} {item.nextStep}</p>)}
+          {analysis.issues.map((item) => <p key={`${item.code}-${item.field}`}><span className="issue-code">{item.code}</span> {item.message} {item.nextStep}</p>)}
           <p>Это подсказки для черновика. Проверьте каждое значение самостоятельно.</p>
         </div>
       </div>}
@@ -506,6 +623,7 @@ function PaymentStep({ payment, setPayment, signers, setSigners, consent, setCon
         {mismatch && (
           <div className="ai-stop field-span-2" role="alert">
             <div className="ai-stop-heading"><span className="ai-stop-icon"><CircleHelp size={17} /></span><strong>Я остановился — суммы не совпадают</strong></div>
+            <span className="issue-code">PAYMENT_PURPOSE_AMOUNT_MISMATCH</span>
             <p>В назначении указано {purposeAmount === null ? "не указана сумма в USD" : `${formatNumber(purposeAmount)} USD`}, а в инвойсе {invoice.number} — {formatNumber(invoiceAmount)} {invoice.currency}. Я не буду менять данные за вас. Сверьте инвойс и выберите, что исправить.</p>
             <Button variant="secondary" className="fix-purpose-button" onClick={correctPurpose}>Исправить назначение на сумму инвойса</Button>
           </div>
@@ -750,11 +868,28 @@ function App() {
   const [consent, setConsent] = useState(false);
   const [analysis, setAnalysis] = useState(null);
   const [workflowId, setWorkflowId] = useState(null);
-  const workflowNeedsReconcile = useRef(true);
+  const workflowIdRef = useRef(null);
+  const dirtyFields = useRef(new Set());
+  const uploadQueue = useRef(Promise.resolve());
+  const uploadControllers = useRef({ contract: null, invoice: null });
+  const uploadVersions = useRef({ contract: 0, invoice: 0 });
+  const [documentStates, setDocumentStates] = useState({
+    contract: { file: null, status: "analyzed", error: null },
+    invoice: { file: null, status: "analyzed", error: null },
+  });
   const [apiState, setApiState] = useState({ connected: false, error: null });
   const activeCase = defaultCase;
   const canContinueFromContract = Boolean(contractNumber.trim() && contractData.counterparty.trim() && contractData.amount.trim());
   const canContinueFromApplication = Boolean(application.number.trim() && application.date && application.fileName);
+
+  function markUserEdit(field) {
+    dirtyFields.current.add(field);
+  }
+
+  function extractedUnlessEdited(record, field, current, dirtyKey) {
+    if (dirtyFields.current.has(dirtyKey)) return current;
+    return extractedValue(record, field, current);
+  }
 
   useEffect(() => {
     getSessionToken()
@@ -771,31 +906,33 @@ function App() {
         let currentId = workflowId;
         let workflow;
         if (!currentId) {
-          workflow = await createWorkflow(payload);
+          workflow = await createWorkflow(payload, controller.signal);
           currentId = workflow.analysis_id;
           setWorkflowId(currentId);
-          workflowNeedsReconcile.current = false;
+          workflowIdRef.current = currentId;
         }
         // A document upload can create the workflow before the user reaches payment.
         // Reconcile every local stage here so the backend always validates the same
         // contract, application, invoice, and payment values that are visible in UI.
-        if (workflowNeedsReconcile.current) {
-          for (const [stage, fields] of Object.entries({
-            contract: payload.contract,
-            application: payload.application,
-            invoice: payload.invoice,
-          })) {
-            await updateWorkflow(currentId, { step: stage, fields, confirm_fields: [], actor: "user" });
-          }
-          workflowNeedsReconcile.current = false;
+        for (const [stage, fields] of Object.entries({
+          contract: payload.contract,
+          application: payload.application,
+          invoice: payload.invoice,
+        })) {
+          await updateWorkflow(currentId, {
+            step: stage,
+            fields,
+            confirm_fields: dirtyFieldsForStage(stage, dirtyFields.current),
+            actor: "user",
+          }, controller.signal);
         }
         const patched = await updateWorkflow(currentId, {
           step: "payment",
           fields: payload.payment,
           confirm_fields: [],
           actor: "user",
-        });
-        const validated = await validateWorkflow(currentId);
+        }, controller.signal);
+        const validated = await validateWorkflow(currentId, controller.signal);
         if (controller.signal.aborted) return;
         setAnalysis(normalizeWorkflow(validated || patched || workflow));
         setApiState({ connected: true, error: null });
@@ -821,57 +958,85 @@ function App() {
       }
     }, 260);
     return () => controller.abort();
-  }, [step, activeCase, invoiceData, contractNumber, contractData.company, contractData.counterparty, contractData.currency, contractData.amount,
-    contractData.endDate, contractData.bank, contractData.swift, contractData.account, application.number, application.date, application.linked,
+  }, [step, activeCase, invoiceData, contractNumber, contractData.company, contractData.contractDate, contractData.buyerCountry,
+    contractData.counterparty, contractData.sellerCountry, contractData.currency, contractData.amount, contractData.endDate,
+    contractData.subject, contractData.paymentTerms, contractData.deliveryTerms, contractData.registrationNumber,
+    contractData.bank, contractData.swift, contractData.account, application.number, application.date, application.linked,
     application.fileName, payment.recipient, payment.iban, payment.swift, payment.feeType, payment.amount, payment.purpose, payment.debitAccount,
     payment.valueDate, payment.urgent, payment.intermediary, payment.knp, payment.document, payment.residence, payment.kbe, payment.country,
     payment.addressType, payment.feeAccount, payment.useBonuses, signers.director, signers.accountant, consent]);
 
   async function handleAnalyzeFile(file, documentType) {
+    uploadControllers.current[documentType]?.abort();
+    const controller = new AbortController();
+    uploadControllers.current[documentType] = controller;
+    const version = ++uploadVersions.current[documentType];
+    setDocumentStates((current) => ({ ...current, [documentType]: { file, status: "analyzing", error: null } }));
     try {
-      const workflow = await analyzeDocument(file, documentType, workflowId);
+      const queued = uploadQueue.current.catch(() => null).then(async () => {
+        if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+        const result = await analyzeDocument(file, documentType, workflowIdRef.current, controller.signal);
+        workflowIdRef.current = result.analysis_id;
+        return result;
+      });
+      uploadQueue.current = queued;
+      const workflow = await queued;
+      if (version !== uploadVersions.current[documentType]) return;
       setWorkflowId(workflow.analysis_id);
-      workflowNeedsReconcile.current = true;
       setAnalysis(normalizeWorkflow(workflow));
       setApiState({ connected: true, error: null });
+      setDocumentStates((current) => ({ ...current, [documentType]: { file, status: "analyzed", error: null } }));
       if (documentType === "contract") {
         const fields = workflow.contract?.fields || {};
-        setContractNumber(extractedValue(workflow.contract, "contract_number", contractNumber));
+        setContractNumber((current) => extractedUnlessEdited(workflow.contract, "contract_number", current, "contract.contractNumber"));
         setContractData((current) => ({
           ...current,
-          counterparty: extractedValue(workflow.contract, "seller_name", current.counterparty),
-          amount: extractedValue(workflow.contract, "contract_amount", current.amount),
-          currency: extractedValue(workflow.contract, "contract_currency", current.currency),
-          endDate: extractedValue(workflow.contract, "contract_expiry_date", current.endDate),
-          bank: extractedValue(workflow.contract, "beneficiary_bank_name", current.bank),
-          swift: extractedValue(workflow.contract, "beneficiary_swift", current.swift),
-          account: extractedValue(workflow.contract, "beneficiary_account", current.account),
+          company: extractedUnlessEdited(workflow.contract, "buyer_name", current.company, "contract.company"),
+          contractDate: extractedUnlessEdited(workflow.contract, "contract_date", current.contractDate, "contract.contractDate"),
+          buyerCountry: extractedUnlessEdited(workflow.contract, "buyer_country", current.buyerCountry, "contract.buyerCountry"),
+          counterparty: extractedUnlessEdited(workflow.contract, "seller_name", current.counterparty, "contract.counterparty"),
+          sellerCountry: extractedUnlessEdited(workflow.contract, "seller_country", current.sellerCountry, "contract.sellerCountry"),
+          amount: extractedUnlessEdited(workflow.contract, "contract_amount", current.amount, "contract.amount"),
+          currency: extractedUnlessEdited(workflow.contract, "contract_currency", current.currency, "contract.currency"),
+          endDate: extractedUnlessEdited(workflow.contract, "contract_expiry_date", current.endDate, "contract.endDate"),
+          subject: extractedUnlessEdited(workflow.contract, "contract_subject", current.subject, "contract.subject"),
+          paymentTerms: extractedUnlessEdited(workflow.contract, "payment_terms", current.paymentTerms, "contract.paymentTerms"),
+          deliveryTerms: extractedUnlessEdited(workflow.contract, "delivery_terms", current.deliveryTerms, "contract.deliveryTerms"),
+          registrationNumber: extractedUnlessEdited(workflow.contract, "contract_registration_number", current.registrationNumber, "contract.registrationNumber"),
+          bank: extractedUnlessEdited(workflow.contract, "beneficiary_bank_name", current.bank, "contract.bank"),
+          swift: extractedUnlessEdited(workflow.contract, "beneficiary_swift", current.swift, "contract.swift"),
+          account: extractedUnlessEdited(workflow.contract, "beneficiary_account", current.account, "contract.account"),
         }));
         if (!Object.keys(fields).length) setApiState({ connected: true, error: "В документе не нашлось полей для автозаполнения." });
       } else {
         const invoice = workflow.invoice;
         setInvoiceData((current) => ({
           ...current,
-          number: extractedValue(invoice, "invoice_number", current.number),
-          date: extractedValue(invoice, "invoice_date", current.date),
-          amount: extractedValue(invoice, "invoice_amount", current.amount),
-          currency: extractedValue(invoice, "invoice_currency", current.currency),
-          beneficiaryName: extractedValue(invoice, "beneficiary_name", current.beneficiaryName),
-          beneficiaryIban: extractedValue(invoice, "beneficiary_account", current.beneficiaryIban),
-          beneficiarySwift: extractedValue(invoice, "beneficiary_swift", current.beneficiarySwift),
+          number: extractedUnlessEdited(invoice, "invoice_number", current.number, "application.number"),
+          date: extractedUnlessEdited(invoice, "invoice_date", current.date, "application.date"),
+          contractNumber: extractedUnlessEdited(invoice, "contract_number", current.contractNumber, "invoice.contractNumber"),
+          amount: extractedUnlessEdited(invoice, "invoice_amount", current.amount, "invoice.amount"),
+          currency: extractedUnlessEdited(invoice, "invoice_currency", current.currency, "invoice.currency"),
+          seller: extractedUnlessEdited(invoice, "seller_name", current.seller, "invoice.seller"),
+          buyer: extractedUnlessEdited(invoice, "buyer_name", current.buyer, "invoice.buyer"),
+          description: extractedUnlessEdited(invoice, "description", current.description, "invoice.description"),
+          beneficiaryName: extractedUnlessEdited(invoice, "beneficiary_name", current.beneficiaryName, "invoice.beneficiaryName"),
+          beneficiaryBank: extractedUnlessEdited(invoice, "beneficiary_bank_name", current.beneficiaryBank, "invoice.beneficiaryBank"),
+          beneficiaryIban: extractedUnlessEdited(invoice, "beneficiary_account", current.beneficiaryIban, "invoice.beneficiaryIban"),
+          beneficiarySwift: extractedUnlessEdited(invoice, "beneficiary_swift", current.beneficiarySwift, "invoice.beneficiarySwift"),
         }));
         setApplication((current) => ({
           ...current,
-          number: extractedValue(invoice, "invoice_number", current.number),
-          date: extractedValue(invoice, "invoice_date", current.date),
+          number: extractedUnlessEdited(invoice, "invoice_number", current.number, "application.number"),
+          date: extractedUnlessEdited(invoice, "invoice_date", current.date, "application.date"),
           fileName: file.name,
         }));
         setPayment((current) => ({
           ...current,
-          amount: extractedValue(invoice, "invoice_amount", current.amount),
-          recipient: extractedValue(invoice, "beneficiary_name", current.recipient),
-          iban: extractedValue(invoice, "beneficiary_account", current.iban),
-          swift: extractedValue(invoice, "beneficiary_swift", current.swift),
+          amount: extractedUnlessEdited(invoice, "invoice_amount", current.amount, "payment.amount"),
+          recipient: extractedUnlessEdited(invoice, "beneficiary_name", current.recipient, "payment.recipient"),
+          iban: extractedUnlessEdited(invoice, "beneficiary_account", current.iban, "payment.iban"),
+          swift: extractedUnlessEdited(invoice, "beneficiary_swift", current.swift, "payment.swift"),
         }));
         await updateWorkflow(workflow.analysis_id, {
           step: "application",
@@ -880,6 +1045,21 @@ function App() {
           actor: "user",
         });
       }
+    } catch (error) {
+      if (controller.signal.aborted || version !== uploadVersions.current[documentType]) return;
+      setApiState({ connected: false, error: error.message });
+      setDocumentStates((current) => ({ ...current, [documentType]: { file, status: "error", error: error.message } }));
+    }
+  }
+
+  async function handleRemoveDocument(documentType) {
+    if (documentType === "contract") setContractFile("");
+    if (documentType === "invoice") setApplication((current) => ({ ...current, fileName: "" }));
+    setDocumentStates((current) => ({ ...current, [documentType]: { file: null, status: "idle", error: null } }));
+    if (!workflowIdRef.current) return;
+    try {
+      const workflow = await deleteWorkflowDocument(workflowIdRef.current, documentType);
+      setAnalysis(normalizeWorkflow(workflow));
     } catch (error) {
       setApiState({ connected: false, error: error.message });
     }
@@ -898,7 +1078,9 @@ function App() {
     setSigners({ director: true, accountant: true });
     setConsent(false);
     setWorkflowId(null);
-    workflowNeedsReconcile.current = true;
+    workflowIdRef.current = null;
+    dirtyFields.current.clear();
+    setDocumentStates({ contract: { file: null, status: "analyzed", error: null }, invoice: { file: null, status: "analyzed", error: null } });
     setAnalysis(null);
   }
 
@@ -946,10 +1128,13 @@ function App() {
                 contractFile={contractFile}
                 setContractFile={setContractFile}
                 onAnalyzeFile={handleAnalyzeFile}
+                onRemoveDocument={handleRemoveDocument}
+                onUserEdit={markUserEdit}
+                documentState={documentStates.contract}
                 apiState={apiState}
               />
             )}
-            {step === 2 && <ApplicationStep application={application} setApplication={setApplication} onAnalyzeFile={handleAnalyzeFile} />}
+            {step === 2 && <ApplicationStep application={application} setApplication={setApplication} invoiceData={invoiceData} setInvoiceData={setInvoiceData} onAnalyzeFile={handleAnalyzeFile} onRemoveDocument={handleRemoveDocument} onUserEdit={markUserEdit} documentState={documentStates.invoice} />}
             {step === 3 && (
               <PaymentStep
                 payment={payment}
@@ -961,6 +1146,7 @@ function App() {
                 onSubmit={() => setStep(4)}
                 analysis={analysis}
                 invoice={invoiceData}
+                onUserEdit={markUserEdit}
               />
             )}
             {step === 4 && (

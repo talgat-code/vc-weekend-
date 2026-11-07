@@ -46,6 +46,30 @@ def test_invoice_larger_than_contract_is_a_blocking_issue(complete_payload):
     assert "INVOICE_AMOUNT_EXCEEDS_CONTRACT" in {issue.code for issue in issues}
 
 
+def test_partial_invoice_is_not_contract_amount_conflict(complete_payload):
+    issues, _ = evaluate_workflow({
+        "contract": {"fields": {key: {"value": value} for key, value in complete_payload["contract"].items()}},
+        "application": {"fields": {key: {"value": value} for key, value in complete_payload["application"].items()}},
+        "invoice": {"fields": {key: {"value": value} for key, value in complete_payload["invoice"].items()}},
+        "payment": {"fields": complete_payload["payment"], "underlying": {}},
+    })
+    assert "INVOICE_AMOUNT_EXCEEDS_CONTRACT" not in {issue.code for issue in issues}
+
+
+def test_cross_document_currency_and_bank_conflicts_are_explicit(complete_payload):
+    complete_payload["contract"].update({"beneficiary_swift": "DEUTDEFF", "beneficiary_account": "GB82WEST12345698765432"})
+    complete_payload["invoice"].update({"invoice_currency": "EUR", "beneficiary_swift": "NEDSZAJJ", "beneficiary_account": "DE89370400440532013000"})
+    issues, _ = evaluate_workflow({
+        "contract": {"fields": {key: {"value": value} for key, value in complete_payload["contract"].items()}},
+        "application": {"fields": {key: {"value": value} for key, value in complete_payload["application"].items()}},
+        "invoice": {"fields": {key: {"value": value} for key, value in complete_payload["invoice"].items()}},
+        "payment": {"fields": complete_payload["payment"], "underlying": {}},
+    })
+    codes = {issue.code for issue in issues}
+    assert "DOCUMENT_CURRENCY_MISMATCH" in codes
+    assert "BENEFICIARY_DETAILS_CONFLICT" in codes
+
+
 def test_rate_limit_response(tmp_path: Path):
     settings = Settings(database_url=f"sqlite:///{(tmp_path / 'rate.db').as_posix()}", rate_limit_requests=1, rate_limit_window_seconds=60)
     with TestClient(create_app(settings)) as client:

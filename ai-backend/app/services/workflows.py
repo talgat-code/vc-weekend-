@@ -94,8 +94,11 @@ def canonicalize(data: dict[str, Any]) -> dict[str, Any]:
     blocking = [issue for issue in issues if issue.severity == "blocking"]
     contract_fields = data["contract"]["fields"]
     app_fields = data["application"]["fields"]
-    contract_done = all(key in contract_fields for key in ("contract_number", "seller_name", "contract_amount", "contract_currency"))
-    application_done = all(key in app_fields for key in ("document_number", "document_date", "document_type"))
+    def present(fields: dict[str, Any], key: str) -> bool:
+        field = fields.get(key)
+        return bool(field and field.get("value") not in (None, ""))
+    contract_done = all(present(contract_fields, key) for key in ("contract_number", "seller_name", "contract_amount", "contract_currency"))
+    application_done = all(present(app_fields, key) for key in ("document_number", "document_date", "document_type"))
     payment_done = not any(issue.blocking_step == "payment" for issue in blocking) and not missing
     status_done = payment_done and bool(data["payment"]["fields"].get("agreement_accepted"))
     done = {"contract": contract_done, "application": application_done, "payment": payment_done, "status": status_done}
@@ -140,9 +143,10 @@ def patch_workflow(repository: Repository, session_id: str, data: dict[str, Any]
             previous_field = fields.get(field)
             previous = previous_field.get("value") if previous_field else None
             if previous_field:
-                previous_field.update(value=new, source_document="api-input", source_section="user", source_excerpt=str(new)[:160], confidence="high", status="confirmed", confirmed_by_user=True)
+                previous_field.update(value=new, source_document="api-input", source_section="user", source_excerpt=str(new)[:160], confidence="high")
             else:
-                fields[field] = _fields({field: new}, document_type)[field].model_dump(mode="json")
+                fields[field] = ExtractedField(value=new, source_document="api-input", source_section="user",
+                    source_excerpt=str(new)[:160], confidence="high", status="extracted").model_dump(mode="json")
             repository.add_audit(session_id, data["analysis_id"], patch.actor, "field_updated", patch.step, field, previous, new)
         for field in patch.confirm_fields:
             if field not in fields:
@@ -152,9 +156,10 @@ def patch_workflow(repository: Repository, session_id: str, data: dict[str, Any]
             fields[field]["status"] = "confirmed"
             repository.add_audit(session_id, data["analysis_id"], patch.actor, "field_confirmed", patch.step, field, previous, True)
         if patch.step == "invoice":
-            for field, target in (("amount", "invoice_amount"), ("currency", "invoice_currency")):
-                if field in fields:
-                    data["payment"]["underlying"][target] = fields[field]["value"]
+            for names, target in ((("invoice_amount", "amount"), "invoice_amount"), (("invoice_currency", "currency"), "invoice_currency")):
+                source = next((fields[name] for name in names if name in fields), None)
+                if source:
+                    data["payment"]["underlying"][target] = source["value"]
     result = canonicalize(data)
     repository.save_workflow(session_id, result)
     return result
