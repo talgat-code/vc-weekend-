@@ -93,7 +93,7 @@ export function normalizeWorkflow(workflow) {
     issues,
     nextStep: workflow.next_actions?.[0] || workflow.workflow?.next_action || "Проверьте предложенные значения.",
     metrics: {
-      totalPaymentFields: 21,
+      totalPaymentFields: 25,
       autoFilledCount: extracted.filter((field) => ["suggested", "extracted"].includes(field.status)).length,
       blockingCount: issues.filter((issue) => issue.severity === "blocking").length,
       detectedIssueCount: issues.length,

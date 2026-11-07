@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import pymupdf
 from docx import Document
@@ -76,11 +76,17 @@ def deterministic_extract(filename: str, document_type: DocumentType, text: str)
 
 
 class AIExtractedValue(BaseModel):
-    name: str
+    name: Literal[
+        "contract_number", "contract_date", "buyer_name", "buyer_country", "seller_name", "seller_country",
+        "contract_amount", "contract_currency", "contract_expiry_date", "contract_subject", "payment_terms",
+        "delivery_terms", "beneficiary_name", "beneficiary_bank_name", "beneficiary_account", "beneficiary_swift",
+        "contract_registration_number", "invoice_number", "invoice_date", "invoice_amount", "invoice_currency",
+        "description", "document_number", "document_date", "document_type", "link_currency_contract",
+    ]
     value: str
     source_section: str | None = None
     source_excerpt: str = Field(max_length=300)
-    confidence: str
+    confidence: Literal["high", "medium", "low", "unknown"]
 
 
 class AIExtractionResult(BaseModel):
@@ -90,6 +96,8 @@ class AIExtractionResult(BaseModel):
 def openai_extract(filename: str, document_type: DocumentType, text: str, settings: Settings) -> dict[str, ExtractedField]:
     response = OpenAI(api_key=settings.openai_api_key, timeout=20.0, max_retries=1).responses.parse(
         model=settings.openai_model,
+        store=False,
+        max_output_tokens=1200,
         input=[
             {"role": "system", "content": DOCUMENT_EXTRACTION_SYSTEM},
             {"role": "user", "content": (
@@ -104,12 +112,33 @@ def openai_extract(filename: str, document_type: DocumentType, text: str, settin
     if parsed is None:
         raise DocumentFailure("AI не вернул структурированный результат.")
     result: dict[str, ExtractedField] = {}
+    currency_for_amount = {
+        "contract_amount": "contract_currency",
+        "invoice_amount": "invoice_currency",
+    }
     for item in parsed.fields:
         if not item.value or re.fullmatch(r"\s*\[[^]]+\]\s*", item.value):
             continue
-        confidence = item.confidence if item.confidence in {"high", "medium", "low", "unknown"} else "unknown"
+        value = item.value.strip()
+        confidence = item.confidence
+        if item.name in currency_for_amount:
+            amount, currency = parse_money(value)
+            if amount is None:
+                # Models sometimes correctly find a number but omit its nearby
+                # currency code. Parse the explicit number without inventing a
+                # currency; the document still needs manual verification.
+                amount, _ = parse_money(f"{value} USD")
+                currency = None
+            if amount is None:
+                continue
+            value = format(amount, "f")
         result[item.name] = ExtractedField(
-            value=item.value, source_document=filename, source_section=item.source_section,
+            value=value, source_document=filename, source_section=item.source_section,
             source_excerpt=item.source_excerpt, confidence=confidence, status="suggested",
         )
+        if item.name in currency_for_amount and currency:
+            result.setdefault(currency_for_amount[item.name], ExtractedField(
+                value=currency, source_document=filename, source_section=item.source_section,
+                source_excerpt=item.source_excerpt, confidence=item.confidence, status="suggested",
+            ))
     return result

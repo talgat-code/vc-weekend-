@@ -49,6 +49,17 @@ def parse_money(text: str) -> tuple[Decimal | None, str | None]:
     return values[0] if values else (None, None)
 
 
+def decimal_value(value: Any) -> Decimal | None:
+    """Parse a persisted numeric field without letting malformed AI text crash validation."""
+    if value in (None, ""):
+        return None
+    try:
+        return Decimal(str(value))
+    except InvalidOperation:
+        amount, _ = parse_money(str(value))
+        return amount
+
+
 def iban_valid(value: str) -> bool | None:
     compact = re.sub(r"\s", "", value or "").upper()
     if not re.match(r"^[A-Z]{2}\d{2}", compact):
@@ -75,7 +86,7 @@ def evaluate_workflow(data: dict[str, Any]) -> tuple[list[Issue], list[str]]:
     underlying = data["payment"]["underlying"]
     invoice_amount_raw = underlying.get("invoice_amount") or _value(data["invoice"], "invoice_amount") or _value(data["invoice"], "amount")
     invoice_currency = underlying.get("invoice_currency") or _value(data["invoice"], "invoice_currency") or _value(data["invoice"], "currency")
-    invoice_amount = Decimal(str(invoice_amount_raw)) if invoice_amount_raw not in (None, "") else None
+    invoice_amount = decimal_value(invoice_amount_raw)
 
     required = ["debit_account", "transfer_amount", "value_date", "beneficiary_bank_swift", "knp", "payment_purpose",
                 "supporting_document_number", "supporting_document_date", "beneficiary_name", "beneficiary_residency_country",
@@ -111,7 +122,8 @@ def evaluate_workflow(data: dict[str, Any]) -> tuple[list[Issue], list[str]]:
                 ["payment_purpose", "transfer_amount"], "Проверьте сумму и исправьте назначение перевода или уточните данные инвойса.", "payment"))
 
     transfer_amount = payment.get("transfer_amount")
-    if invoice_amount is not None and transfer_amount not in (None, "") and Decimal(str(transfer_amount)) != invoice_amount:
+    transfer_decimal = decimal_value(transfer_amount)
+    if invoice_amount is not None and transfer_amount not in (None, "") and transfer_decimal != invoice_amount:
         issues.append(_issue("TRANSFER_AMOUNT_MISMATCH", "blocking", "Сумма перевода не совпадает с инвойсом",
             "Поле суммы перевода отличается от подтверждённой суммы инвойса.", ["transfer_amount"],
             "Проверьте оба значения и вручную исправьте ошибочное.", "payment"))
@@ -133,7 +145,8 @@ def evaluate_workflow(data: dict[str, Any]) -> tuple[list[Issue], list[str]]:
 
     contract_amount_raw = _value(data["contract"], "contract_amount") or _value(data["contract"], "amount")
     registration_number = _value(data["contract"], "contract_registration_number")
-    if contract_amount_raw is None or Decimal(str(contract_amount_raw)) > Decimal("50000"):
+    contract_amount = decimal_value(contract_amount_raw)
+    if contract_amount is None or contract_amount > Decimal("50000"):
         data["application"]["registration_review_required"] = True
         data["application"]["registration_review_reason"] = "Демонстрационное правило: импортный договор превышает 50 000 USD или не содержит суммы."
         if not registration_number:
