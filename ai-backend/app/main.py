@@ -52,7 +52,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.repository = repository
     app.add_middleware(
-        CORSMiddleware, allow_origins=list(dict.fromkeys(["http://localhost:5173", settings.frontend_origin])), allow_credentials=False,
+        CORSMiddleware, allow_origins=list(dict.fromkeys(["http://localhost:5173", "http://127.0.0.1:5173", settings.frontend_origin])), allow_credentials=False,
         allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
         allow_headers=["Content-Type", "X-Session-Token", "X-Request-ID"], expose_headers=["X-Request-ID"],
     )

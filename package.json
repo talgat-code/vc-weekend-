@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "api": "node server/index.js",
+    "api:python": "python -m uvicorn app.main:app --reload --app-dir ai-backend --host 127.0.0.1 --port 8000",
     "check": "node --test server/analysis.test.js",
     "build": "vite build",
     "preview": "vite preview"

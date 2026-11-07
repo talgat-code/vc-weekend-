@@ -6,13 +6,15 @@ from pathlib import Path
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(BACKEND_ROOT / ".env")
 load_dotenv()
 
 
 class Settings(BaseModel):
     openai_api_key: str | None = Field(default_factory=lambda: os.getenv("OPENAI_API_KEY") or None)
     openai_model: str = Field(default_factory=lambda: os.getenv("OPENAI_MODEL", "gpt-4.1-mini"))
-    ai_demo_mode: bool = Field(default_factory=lambda: os.getenv("AI_DEMO_MODE", "true").lower() == "true")
+    ai_demo_mode: bool = Field(default_factory=lambda: os.getenv("AI_DEMO_MODE", "false").lower() == "true")
     frontend_origin: str = Field(default_factory=lambda: os.getenv("FRONTEND_ORIGIN", "http://localhost:5173"))
     database_url: str = Field(default_factory=lambda: os.getenv("DATABASE_URL", "sqlite:///data/bcc_ved.db"))
     max_upload_bytes: int = Field(default_factory=lambda: int(os.getenv("MAX_UPLOAD_BYTES", "10485760")))

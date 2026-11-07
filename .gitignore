@@ -3,3 +3,7 @@ dist/
 .vite/
 .chrome-codex/
 artifacts/
+.env
+.api-codex*.log
+.vite-codex*.log
+data/*.db

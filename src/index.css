@@ -73,6 +73,7 @@ h1, h2, h3, p { margin-top: 0; }
 .main-panel { min-width: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
 .step-content { padding: 28px 30px 24px; }
 .section-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; margin-bottom: 23px; }
+.section-title-heading, .heading-with-help, .block-title-row, .toggle-label-row { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .section-title { margin: 0; font-size: 19px; line-height: 1.35; font-weight: 600; letter-spacing: -.025em; }
 .section-description { max-width: 680px; margin: 6px 0 0; color: var(--muted); font-size: 13px; }
 
@@ -104,6 +105,7 @@ h1, h2, h3, p { margin-top: 0; }
 .field { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .field-span-2 { grid-column: span 2; }
 .field-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 17px; }
+.field-label-wrap { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
 .field-label { color: var(--ink); font-size: 12px; font-weight: 500; }
 .required-mark { color: var(--action); }
 .field-marker { color: #75613E; font-size: 10px; font-weight: 500; }
@@ -123,6 +125,12 @@ h1, h2, h3, p { margin-top: 0; }
 .input-combo .control + .control, .input-combo .currency-suffix { width: auto; min-width: 74px; border-left: 0; border-radius: 0 4px 4px 0; }
 .currency-suffix { display: grid; place-items: center; padding: 0 12px; border: 1px solid #CFCBC3; background: var(--soft); color: var(--ink); font-size: 12px; font-weight: 500; }
 .field-hint { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.help-tooltip { position: relative; z-index: 12; display: inline-flex; flex: 0 0 auto; vertical-align: middle; }
+.help-tooltip-trigger { width: 18px; height: 18px; display: inline-grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #707A88; cursor: help; }
+.help-tooltip-trigger:hover, .help-tooltip-trigger:focus-visible { color: var(--action); background: rgba(0,185,114,.1); outline: none; }
+.help-tooltip-bubble { position: absolute; z-index: 50; top: calc(100% + 8px); right: 0; width: 255px; padding: 10px 11px; border: 1px solid #122039; border-radius: 5px; background: var(--ink); color: #fff; font-size: 11px; font-weight: 400; line-height: 1.5; box-shadow: 0 8px 20px rgba(27,42,74,.18); opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(-3px); transition: opacity .15s ease, visibility .15s ease, transform .15s ease; }
+.help-tooltip-bubble::before { content: ""; position: absolute; top: -5px; right: 9px; width: 9px; height: 9px; border-top: 1px solid #122039; border-left: 1px solid #122039; background: var(--ink); transform: rotate(45deg); }
+.help-tooltip:hover .help-tooltip-bubble, .help-tooltip:focus-within .help-tooltip-bubble { opacity: 1; visibility: visible; pointer-events: auto; transform: translateY(0); }
 .form-note { display: flex; align-items: flex-start; gap: 8px; padding: 10px 11px; margin: 17px 0 0; border-left: 2px solid var(--attention); background: #FAF8F3; color: #61583F; font-size: 11px; }
 .form-note svg { flex: 0 0 auto; margin-top: 1px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
@@ -196,6 +204,7 @@ h1, h2, h3, p { margin-top: 0; }
 .urgency-control { padding: 12px 13px; border: 1px solid var(--line); border-radius: 4px; background: #FCFBF9; }
 .toggle-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; cursor: pointer; }
 .toggle-copy { display: grid; gap: 2px; }
+.toggle-label-row { gap: 5px; }
 .toggle-label { color: var(--ink); font-size: 12px; font-weight: 500; }
 .toggle-description { color: var(--muted); font-size: 10px; }
 .toggle { width: 36px; height: 20px; flex: 0 0 36px; position: relative; padding: 2px; border: 1px solid #B9B5AD; border-radius: 99px; background: #E7E4DE; cursor: pointer; transition: background .15s ease; }
@@ -313,4 +322,6 @@ h1, h2, h3, p { margin-top: 0; }
   .status-columns { grid-template-columns: 1fr; gap: 20px; }
   .decision-row { grid-template-columns: 95px minmax(0,1fr); }
   .page-footer { flex-direction: column; gap: 4px; }
+  .help-tooltip-bubble { position: fixed; top: auto; right: 16px; bottom: 16px; left: 16px; width: auto; }
+  .help-tooltip-bubble::before { top: auto; right: 50%; bottom: -5px; border-top: 0; border-left: 1px solid #122039; border-right: 1px solid #122039; border-bottom: 1px solid #122039; transform: translateX(50%) rotate(45deg); }
 }
